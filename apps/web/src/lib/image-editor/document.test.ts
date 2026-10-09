@@ -189,7 +189,7 @@ describe('OpenPost Image Editor document contracts', () => {
 		});
 		expect(result.readOnly).toBe(true);
 		expect(result.document?.schema_version).toBe(99);
-		expect(result.error).toContain('newer OpenPost version');
+		expect(result.error).toContain('newer Gestión de RRSS version');
 	});
 
 	it('fills new image-adjustment defaults when opening an existing document', () => {
