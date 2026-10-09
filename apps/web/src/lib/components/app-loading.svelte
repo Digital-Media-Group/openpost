@@ -6,7 +6,7 @@
 		minHeight?: string;
 	}
 
-	let { label = 'Loading OpenPost', minHeight = '100dvh' }: Props = $props();
+	let { label = 'Loading Gestión de RRSS', minHeight = '100dvh' }: Props = $props();
 </script>
 
 <div

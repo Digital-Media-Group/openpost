@@ -1761,7 +1761,7 @@ LosslessCut (GPL - behavioral reference only, no code ported).
 		content="Trim and join compatible video segments locally with Quick Cut. A separate, focused tool for cuts without re-encoding."
 	/>
 	<link rel="canonical" href="https://app.openpo.st/quick-cut" />
-	<meta property="og:site_name" content="OpenPost" />
+	<meta property="og:site_name" content="Gestión de RRSS" />
 	<meta property="og:type" content="website" />
 	<meta property="og:title" content="Free video trimmer and cutter - OpenPost Quick Cut" />
 	<meta

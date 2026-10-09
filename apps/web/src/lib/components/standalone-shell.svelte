@@ -43,7 +43,7 @@
 			<a
 				href={resolve(logoHref as '/')}
 				class="inline-flex size-16 items-center justify-center rounded-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
-				aria-label="OpenPost"
+				aria-label="Gestión de RRSS"
 			>
 				<Logo width={64} height={50} decorative />
 			</a>

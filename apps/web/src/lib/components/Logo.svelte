@@ -38,7 +38,7 @@
 	{#if showText}
 		<span
 			class="font-brand leading-none font-semibold tracking-[-0.02em] whitespace-nowrap text-sidebar-foreground"
-			>OpenPost</span
+			>Gestión de RRSS</span
 		>
 	{/if}
 </div>

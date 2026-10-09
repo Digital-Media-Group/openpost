@@ -625,7 +625,7 @@ FORM: Server-owned insights and content rows preserve source, period, sample, an
 </script>
 
 <svelte:head>
-	<title>{m.analytics_title()} · OpenPost</title>
+	<title>{m.analytics_title()} · Gestión de RRSS</title>
 </svelte:head>
 
 {#snippet actions()}

@@ -488,7 +488,7 @@
 			<a
 				href={resolveAppPath('/')}
 				class="rounded-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
-				aria-label="OpenPost"
+				aria-label="Gestión de RRSS"
 			>
 				<Logo width={132} height={30} showText />
 			</a>

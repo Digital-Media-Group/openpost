@@ -691,7 +691,7 @@
 </script>
 
 <svelte:head>
-	<title>{m.messages_heading()} · OpenPost</title>
+	<title>{m.messages_heading()} · Gestión de RRSS</title>
 </svelte:head>
 
 {#if toast}

@@ -63,7 +63,7 @@
 	});
 </script>
 
-<svelte:head><title>{m.templates_title()} · OpenPost</title></svelte:head>
+<svelte:head><title>{m.templates_title()} · Gestión de RRSS</title></svelte:head>
 <PageContainer
 	title={m.templates_title()}
 	description={m.templates_description()}

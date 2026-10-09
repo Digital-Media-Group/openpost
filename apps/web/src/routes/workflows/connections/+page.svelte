@@ -65,7 +65,7 @@
 	}
 </script>
 
-<svelte:head><title>{m.workflows_connections()} · OpenPost</title></svelte:head>
+<svelte:head><title>{m.workflows_connections()} · Gestión de RRSS</title></svelte:head>
 <PageContainer
 	title={m.workflows_connections()}
 	description={m.workflows_connections_help()}

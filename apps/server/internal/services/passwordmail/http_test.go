@@ -36,6 +36,6 @@ func TestResendSenderUsesBearerAuthAndIdempotency(t *testing.T) {
 		Recipient: "person@example.com", Code: "123456",
 		ExpiresAt: time.Now().UTC().Add(10 * time.Minute), IdempotencyKey: "verify-challenge-1",
 	}))
-	require.Equal(t, "Verify your OpenPost email", received["subject"])
+	require.Equal(t, "Verify your Gestión de RRSS email", received["subject"])
 	require.Contains(t, received["text"], "123456")
 }
