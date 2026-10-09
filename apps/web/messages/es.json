@@ -1590,7 +1590,7 @@
 	"sidebar_delete_draft_success": "Borrador eliminado.",
 	"sidebar_thread_draft": "Borrador de hilo",
 	"sidebar_full_calendar": "Calendario completo",
-	"sidebar_source_notice": "Copyright 2026 OpenPost Contributors. AGPL-3.0-only. Sin garantía.",
+	"sidebar_source_notice": "Copyright 2026 OpenPost Contributors. Licencia AGPL-3.0-only, sin garantía. Esta es una VERSIÓN MODIFICADA de OpenPost, preparada por Digital Media Group el 9 de octubre de 2026 (traducción al español y marca propia). Código fuente de esta versión: https://github.com/Digital-Media-Group/openpost",
 	"sidebar_view_source": "Origen",
 	"sidebar_view_license": "Licencia",
 	"sidebar_calendar": "Calendario",
