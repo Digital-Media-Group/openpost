@@ -60,7 +60,7 @@
 	let authState = $derived($authStore);
 	let userCode = $derived($pageStore.url.searchParams.get('user_code') ?? '');
 	let session = $state<CLIAuthSession | null>(null);
-	let tokenName = $state('OpenPost');
+	let tokenName = $state('Gestión de RRSS');
 	let selectedWorkspaceID = $state<string | null>(null);
 	let error = $state('');
 	let sessionLoadFailed = $state(false);

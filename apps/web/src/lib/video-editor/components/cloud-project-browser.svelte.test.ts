@@ -64,7 +64,7 @@ it('explains unmatched project search and restores the inventory with keyboard c
 				await expect
 					.element(
 						screen.getByText(
-							'No OpenPost Video Editor projects have been saved to this workspace.',
+							'No Gestión de RRSS Video Editor projects have been saved to this workspace.',
 							{ exact: true }
 						)
 					)
@@ -101,7 +101,7 @@ it('explains unmatched project search and restores the inventory with keyboard c
 }, 30_000);
 
 it('keeps genuine empty, loading and failed libraries distinct from a search miss', async () => {
-	const empty = 'No OpenPost Video Editor projects have been saved to this workspace.';
+	const empty = 'No Gestión de RRSS Video Editor projects have been saved to this workspace.';
 	for (const state of [
 		{ projects: [], loading: false, error: '' },
 		{ projects: [], loading: true, error: '' },

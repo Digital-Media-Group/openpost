@@ -249,7 +249,7 @@ async function initPipeline(
 					postMain({ type: 'runtime', info: { backend: 'webgpu' } });
 				} catch (error) {
 					logger.warn(
-						`[OpenPost transcription] WebGPU initialization failed: ${
+						`[Gestión de RRSS transcription] WebGPU initialization failed: ${
 							error instanceof Error ? error.message : String(error)
 						}. Falling back to WASM.`
 					);

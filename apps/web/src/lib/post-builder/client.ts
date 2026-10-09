@@ -141,7 +141,7 @@ async function apiMutationRequest<T>(
 		signal
 	});
 	if (!response.ok) {
-		let message = `OpenPost could not complete this AI request (${response.status}).`;
+		let message = `Gestión de RRSS could not complete this AI request (${response.status}).`;
 		try {
 			// SAFETY: Problem responses are inspected only for optional string fields and retain a bounded fallback.
 			const problem = (await response.json()) as { detail?: string; title?: string };
@@ -238,6 +238,8 @@ function postBuilderRequestError(
 	status: number
 ): Error {
 	return new Error(
-		error?.detail || error?.title || `OpenPost could not complete this AI request (${status}).`
+		error?.detail ||
+			error?.title ||
+			`Gestión de RRSS could not complete this AI request (${status}).`
 	);
 }

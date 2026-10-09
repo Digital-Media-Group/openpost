@@ -574,7 +574,7 @@ export async function createImageEditorReturnToken(input: {
 	});
 	settleImageEditorMutation(session, response);
 	if (error || !data)
-		throw new Error(problemMessage(error, 'Could not open OpenPost Image Editor.'));
+		throw new Error(problemMessage(error, 'Could not open Gestión de RRSS Image Editor.'));
 	return { token: data.token, expires_at: data.expires_at };
 }
 
@@ -593,7 +593,9 @@ export async function completeImageEditorReturnToken(
 	);
 	settleImageEditorMutation(session, response);
 	if (error || !data)
-		throw new Error(problemMessage(error, 'Could not return OpenPost Image Editor exports.'));
+		throw new Error(
+			problemMessage(error, 'Could not return Gestión de RRSS Image Editor exports.')
+		);
 	return data.return_url;
 }
 
@@ -614,7 +616,9 @@ export async function consumeImageEditorReturnToken(token: string): Promise<{
 	);
 	settleImageEditorMutation(session, response);
 	if (error || !data)
-		throw new Error(problemMessage(error, 'Could not restore OpenPost Image Editor exports.'));
+		throw new Error(
+			problemMessage(error, 'Could not restore Gestión de RRSS Image Editor exports.')
+		);
 	return {
 		workspace_id: data.workspace_id,
 		return_url: data.return_url,

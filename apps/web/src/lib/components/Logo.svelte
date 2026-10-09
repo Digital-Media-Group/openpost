@@ -24,7 +24,7 @@
 		width={size}
 		height={size}
 		role={decorative || showText ? undefined : 'img'}
-		aria-label={decorative || showText ? undefined : 'OpenPost'}
+		aria-label={decorative || showText ? undefined : 'Gestión de RRSS'}
 		aria-hidden={decorative || showText ? 'true' : undefined}
 		class="h-auto max-w-full shrink-0"
 	>

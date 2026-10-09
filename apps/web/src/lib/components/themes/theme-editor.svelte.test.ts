@@ -140,7 +140,7 @@ describe('ThemeEditor', () => {
 
 		await expect
 			.element(screen.getByRole('alert'))
-			.toHaveTextContent('Theme ID is managed by OpenPost');
+			.toHaveTextContent('Theme ID is managed by Gestión de RRSS');
 	});
 
 	it('applies valid manifest edits before returning to guided controls', async () => {

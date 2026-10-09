@@ -142,7 +142,7 @@ export function createSnapshotService(runtime: SnapshotServiceRuntime) {
 		const migrated = migrateProjectDocument(validated.project);
 		if (migrated.warnings.some((warning) => warning.code === 'FUTURE_SCHEMA')) {
 			throw new Error(
-				`This project uses schema ${migrated.fromVersion}. Update OpenPost before importing it.`
+				`This project uses schema ${migrated.fromVersion}. Update Gestión de RRSS before importing it.`
 			);
 		}
 		warnings.push(...migrated.warnings.map((warning) => warning.message));

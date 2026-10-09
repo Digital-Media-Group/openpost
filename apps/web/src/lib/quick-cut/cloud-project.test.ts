@@ -196,7 +196,7 @@ describe('Quick Cut cloud projects', () => {
 		} satisfies QuickCutCloudRepository;
 
 		await expect(syncQuickCutCloudProject(repository, null, project, [missing])).rejects.toThrow(
-			'Reconnect the file before saving to OpenPost'
+			'Reconnect the file before saving to Gestión de RRSS'
 		);
 		expect(createWithId).not.toHaveBeenCalled();
 	});

@@ -36,7 +36,7 @@
 </script>
 
 <svelte:head>
-	<title>{page.status} — {title} — OpenPost</title>
+	<title>{page.status} — {title} — Gestión de RRSS</title>
 </svelte:head>
 
 <AppErrorState status={page.status} {online} onBack={goBack} onRetry={retry} {links} />

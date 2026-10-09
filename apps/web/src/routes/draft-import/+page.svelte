@@ -85,7 +85,7 @@
 </script>
 
 <svelte:head
-	><title>{m.tool_draft_opening()} | OpenPost</title><meta
+	><title>{m.tool_draft_opening()} | Gestión de RRSS</title><meta
 		name="robots"
 		content="noindex"
 	/></svelte:head
