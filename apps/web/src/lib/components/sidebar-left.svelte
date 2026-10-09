@@ -374,8 +374,7 @@
 				target="_blank"
 				rel="noopener noreferrer"
 				class="mt-1 block px-2 pb-1 text-[10px] leading-snug text-sidebar-foreground/60 transition-colors hover:text-sidebar-foreground hover:underline"
-				data-testid="sidebar-source-notice"
-				>{m.sidebar_source_notice()}</a
+				data-testid="sidebar-source-notice">{m.sidebar_source_notice()}</a
 			>
 		{/if}
 	</Sidebar.Footer>
