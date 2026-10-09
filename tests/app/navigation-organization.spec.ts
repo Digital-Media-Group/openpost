@@ -172,7 +172,7 @@ test("mobile menus preserve keyboard focus and expose editor creation", async ({
   await expect(profile).toBeFocused();
   await page.keyboard.press("Escape");
   await nav.getByRole("button", { name: "New", exact: true }).click();
-  await page.getByRole("menuitem", { name: "OpenPost Image Editor", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Gestión de RRSS Image Editor", exact: true }).click();
   await expect(page).toHaveURL(/\/image-editor$/);
 });
 

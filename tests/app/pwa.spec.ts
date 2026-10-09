@@ -187,7 +187,7 @@ for (const scheme of ["light", "dark"] as const) {
         window.dispatchEvent(event);
       });
     await announceInstall();
-    await expect(page.getByText("Install OpenPost?", { exact: true })).toBeVisible();
+    await expect(page.getByText("Install Gestión de RRSS?", { exact: true })).toBeVisible();
     await expect(page.locator('[data-sonner-toast][data-mounted="true"]')).toBeVisible();
     await page.screenshot({
       path: testInfo.outputPath("desktop-install-toast.png"),
@@ -196,7 +196,7 @@ for (const scheme of ["light", "dark"] as const) {
     await page.reload();
     await expect(page.getByTestId("profile-menu-trigger")).toBeVisible();
     await announceInstall();
-    await expect(page.getByText("Install OpenPost?", { exact: true })).not.toBeVisible();
+    await expect(page.getByText("Install Gestión de RRSS?", { exact: true })).not.toBeVisible();
     await page.getByTestId("profile-menu-trigger").click();
     const install = page.getByRole("menuitem", {
       name: "Install app",
