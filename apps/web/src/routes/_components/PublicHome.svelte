@@ -56,7 +56,7 @@ FIRST VIEWPORT: Brand and sign-in sit above the offer; entry price and trial ter
 			>
 				<Logo width={36} height={28} decorative />
 				<span class="font-brand text-sm leading-none font-semibold tracking-[-0.02em]"
-					>OpenPost</span
+					>Gestión de RRSS</span
 				>
 			</a>
 			<div class="flex items-center gap-1.5">

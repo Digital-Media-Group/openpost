@@ -255,7 +255,7 @@
 </script>
 
 <svelte:head>
-	<title>{m.notifications_heading()} · OpenPost</title>
+	<title>{m.notifications_heading()} · Gestión de RRSS</title>
 </svelte:head>
 
 {#if toast}

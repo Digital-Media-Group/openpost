@@ -25,15 +25,15 @@ func resetContent(message ResetMessage) (messageContent, error) {
 		return messageContent{}, fmt.Errorf("password reset URL is required")
 	}
 	expires := message.ExpiresAt.UTC().Format(time.RFC1123)
-	text := "A password reset was requested for your OpenPost account.\n\n" +
+	text := "A password reset was requested for your Gestión de RRSS account.\n\n" +
 		"Open this link to choose a new password:\n" + resetURL + "\n\n" +
 		"This single-use link expires at " + expires + ".\n" +
 		"If you did not request this change, you can ignore this email.\n"
-	htmlBody := `<p>A password reset was requested for your OpenPost account.</p>` +
+	htmlBody := `<p>A password reset was requested for your Gestión de RRSS account.</p>` +
 		`<p><a href="` + html.EscapeString(resetURL) + `">Choose a new password</a></p>` +
 		`<p>This single-use link expires at ` + html.EscapeString(expires) + `.</p>` +
 		`<p>If you did not request this change, you can ignore this email.</p>`
-	return messageContent{Subject: "Reset your OpenPost password", Text: text, HTML: htmlBody}, nil
+	return messageContent{Subject: "Reset your Gestión de RRSS password", Text: text, HTML: htmlBody}, nil
 }
 
 func verificationContent(message VerificationMessage) (messageContent, error) {
@@ -42,14 +42,14 @@ func verificationContent(message VerificationMessage) (messageContent, error) {
 		return messageContent{}, fmt.Errorf("email verification code must contain six digits")
 	}
 	expires := message.ExpiresAt.UTC().Format(time.RFC1123)
-	text := "Use this code to verify your OpenPost email address:\n\n" + code + "\n\n" +
+	text := "Use this code to verify your Gestión de RRSS email address:\n\n" + code + "\n\n" +
 		"This code expires at " + expires + ".\n" +
-		"If you did not create an OpenPost account, you can ignore this email.\n"
-	htmlBody := `<p>Use this code to verify your OpenPost email address:</p>` +
+		"If you did not create a Gestión de RRSS account, you can ignore this email.\n"
+	htmlBody := `<p>Use this code to verify your Gestión de RRSS email address:</p>` +
 		`<p style="font-size:32px;font-weight:700;letter-spacing:0.2em">` + code + `</p>` +
 		`<p>This code expires at ` + html.EscapeString(expires) + `.</p>` +
-		`<p>If you did not create an OpenPost account, you can ignore this email.</p>`
-	return messageContent{Subject: "Verify your OpenPost email", Text: text, HTML: htmlBody}, nil
+		`<p>If you did not create a Gestión de RRSS account, you can ignore this email.</p>`
+	return messageContent{Subject: "Verify your Gestión de RRSS email", Text: text, HTML: htmlBody}, nil
 }
 
 func notificationContent(message notificationMessage) (messageContent, error) {

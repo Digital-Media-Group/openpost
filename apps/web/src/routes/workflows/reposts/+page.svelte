@@ -11,7 +11,7 @@
 	const workspaceID = $derived(workspaceCtx.currentWorkspace?.id ?? '');
 </script>
 
-<svelte:head><title>{m.repost_heading()} · {m.workflows_title()} · OpenPost</title></svelte:head>
+<svelte:head><title>{m.repost_heading()} · {m.workflows_title()} · Gestión de RRSS</title></svelte:head>
 <PageContainer title={m.workflows_title()} themeIconRole="repeat">
 	{#snippet navigation()}
 		<div class="flex flex-wrap items-center justify-between gap-3 border-b pb-3">

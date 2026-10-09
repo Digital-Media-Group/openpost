@@ -98,7 +98,7 @@
 		sessionRequestSequence += 1;
 		decisionRequestSequence += 1;
 		session = null;
-		tokenName = 'OpenPost';
+		tokenName = 'Gestión de RRSS';
 		selectedWorkspaceID = null;
 		error = '';
 		sessionLoadFailed = false;
@@ -135,7 +135,7 @@
 			}
 
 			session = data;
-			tokenName = data.client_name.trim() || 'OpenPost';
+			tokenName = data.client_name.trim() || 'Gestión de RRSS';
 			loadedUserCode = code;
 		} catch (cause) {
 			if (
@@ -186,7 +186,7 @@
 				decision === 'approved'
 					? {
 							user_code: code,
-							name: tokenName.trim() || session.client_name.trim() || 'OpenPost',
+							name: tokenName.trim() || session.client_name.trim() || 'Gestión de RRSS',
 							workspace_id: selectedWorkspaceID ?? ''
 						}
 					: { user_code: code };

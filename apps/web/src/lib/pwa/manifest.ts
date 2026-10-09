@@ -3,9 +3,9 @@ import type { ManifestOptions } from 'vite-plugin-pwa';
 export const appManifest = {
 	id: '/',
 	scope: '/',
-	name: 'OpenPost',
-	short_name: 'OpenPost',
-	description: 'Schedule and publish content across multiple social platforms.',
+	name: 'Gestión de RRSS',
+	short_name: 'Gestión de RRSS',
+	description: 'Programa y publica contenido en tus redes sociales.',
 	theme_color: '#b74c05',
 	background_color: '#faf9f7',
 	display: 'standalone',

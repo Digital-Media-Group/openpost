@@ -330,8 +330,8 @@ func main() {
 	externalApplicationService.SetDynamicRegistrationEnabled(cfg.OAuthDCR)
 	externalWebhookService := externalwebhooks.NewService(db, tokenEncryptor)
 	mediaSigner := mediasigner.New(cfg.MediaSigningKey)
-	mfaService, err := mfa.NewService("OpenPost", mfa.RelyingPartyConfig{
-		Name:    "OpenPost",
+	mfaService, err := mfa.NewService("Gestión de RRSS", mfa.RelyingPartyConfig{
+		Name:    "Gestión de RRSS",
 		ID:      cfg.WebAuthnRPID,
 		Origins: []string{cfg.PublicURL},
 	})

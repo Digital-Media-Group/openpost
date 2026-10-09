@@ -391,7 +391,7 @@
 		content="Create posts, carousel pages, Story slides, and thumbnails in your browser."
 	/>
 	<link rel="canonical" href="https://app.openpo.st/image-editor/new" />
-	<meta property="og:site_name" content="OpenPost" />
+	<meta property="og:site_name" content="Gestión de RRSS" />
 	<meta property="og:type" content="website" />
 	<meta property="og:title" content="Free social media image editor - OpenPost Image Editor" />
 	<meta

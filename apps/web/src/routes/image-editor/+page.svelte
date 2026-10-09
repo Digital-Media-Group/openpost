@@ -427,7 +427,7 @@
 	<title>{m.image_editor_public_meta_title()}</title>
 	<meta name="description" content={m.image_editor_public_meta_description()} />
 	<link rel="canonical" href="https://app.openpo.st/image-editor" />
-	<meta property="og:site_name" content="OpenPost" />
+	<meta property="og:site_name" content="Gestión de RRSS" />
 	<meta property="og:type" content="website" />
 	<meta property="og:title" content="Free social media image editor - OpenPost Image Editor" />
 	<meta

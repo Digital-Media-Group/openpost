@@ -517,7 +517,7 @@
 <svelte:window onbeforeunload={warnBeforeUnload} />
 
 <svelte:head>
-	<title>OpenPost</title>
+	<title>Gestión de RRSS</title>
 </svelte:head>
 
 <QueryClientProvider client={queryClient}>

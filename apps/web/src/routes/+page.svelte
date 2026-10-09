@@ -7,7 +7,7 @@
 </script>
 
 <svelte:head>
-	<title>OpenPost</title>
+	<title>Gestión de RRSS</title>
 </svelte:head>
 
 <div class="flex flex-1 flex-col overflow-hidden">

@@ -662,7 +662,7 @@
 		content="Record or import footage, edit for four social formats, and export without a watermark."
 	/>
 	<link rel="canonical" href="https://app.openpo.st/video-editor" />
-	<meta property="og:site_name" content="OpenPost" />
+	<meta property="og:site_name" content="Gestión de RRSS" />
 	<meta property="og:type" content="website" />
 	<meta property="og:title" content="Free social media video editor - OpenPost Video Editor" />
 	<meta

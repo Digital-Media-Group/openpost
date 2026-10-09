@@ -73,7 +73,7 @@
 	}
 </script>
 
-<svelte:head><title>{m.workflows_title()} · OpenPost</title></svelte:head>
+<svelte:head><title>{m.workflows_title()} · Gestión de RRSS</title></svelte:head>
 <PageContainer
 	title={m.workflows_title()}
 	description={m.workflows_subtitle()}

@@ -24,21 +24,28 @@
 		width={size}
 		height={size}
 		role={decorative || showText ? undefined : 'img'}
-		aria-label={decorative || showText ? undefined : 'OpenPost'}
+		aria-label={decorative || showText ? undefined : 'Gestión de RRSS'}
 		aria-hidden={decorative || showText ? 'true' : undefined}
 		class="h-auto max-w-full shrink-0"
 	>
+		<!-- Un nodo que publica, dos redes que reciben: publicar una vez,
+		     repartir a todas. Misma caja de 128 que antes, así que encaja en
+		     los mismos huecos sin tocar los tamaños de quien lo usa. -->
+		<g fill="none" stroke="var(--action-focal)" stroke-width="13" stroke-linecap="round">
+			<path d="M64 35 28 99" />
+			<path d="M64 35 100 99" />
+			<path d="M28 99h72" />
+		</g>
 		<g fill="var(--action-focal)">
-			<path d="M24 4h36v28L32 60H4V24A20 20 0 0 1 24 4Z" />
-			<path d="M68 4h36a20 20 0 0 1 20 20v36H96L68 32Z" />
-			<path d="M4 68h28l28 28v28H24a20 20 0 0 1-20-20Z" />
-			<path d="m68 96 28-28h28v36a20 20 0 0 1-20 20H68Z" />
+			<circle cx="64" cy="35" r="22" />
+			<circle cx="28" cy="99" r="16" />
+			<circle cx="100" cy="99" r="16" />
 		</g>
 	</svg>
 	{#if showText}
 		<span
 			class="font-brand leading-none font-semibold tracking-[-0.02em] whitespace-nowrap text-sidebar-foreground"
-			>OpenPost</span
+			>Gestión de RRSS</span
 		>
 	{/if}
 </div>
