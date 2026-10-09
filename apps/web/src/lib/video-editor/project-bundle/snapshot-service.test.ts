@@ -136,7 +136,7 @@ describe('project snapshot service', () => {
 			toItemId: result.project.timeline!.items[0]?.id
 		});
 		expect(result.warnings).toContain(
-			'Converted FreeCut schema 15 to the OpenPost project format.'
+			'Converted FreeCut schema 15 to the Gestión de RRSS project format.'
 		);
 	});
 
