@@ -96,21 +96,45 @@ jobs:
             const catalogue = JSON.parse(
               readFileSync("apps/web/messages/es.json", "utf8"),
             );
-            const mustBeSpanish = [
-              ["settings_token_copy_failed", /the token could not be copied/i],
-              ["sidebar_source_link", /OpenPost Contributors/i],
+            // Cada comprobación es [clave, qué debe cumplir, por qué].
+            const checks = [
+              [
+                "settings_token_copy_failed",
+                (v) => !/the token could not be copied/i.test(v),
+                "sigue en inglés (éste es el fallo original)",
+              ],
+              [
+                "sidebar_source_link",
+                (v) => /Digital Media Group/.test(v),
+                "no nombra a Digital Media Group como autor de la versión modificada",
+              ],
+              [
+                "sidebar_source_link",
+                (v) => /AGPL-3\.0-only/.test(v),
+                "no nombra la licencia AGPL-3.0-only",
+              ],
+              [
+                "sidebar_source_link",
+                (v) => /OpenPost Contributors/.test(v),
+                "no reconoce la autoría original de OpenPost (lo exige la AGPL §5(a))",
+              ],
+              [
+                "sidebar_source_link",
+                (v) => /\b20\d\d\b/.test(v),
+                "no lleva fecha (la AGPL §5(a) exige indicar la fecha del cambio)",
+              ],
             ];
-            for (const [key, english] of mustBeSpanish) {
+            for (const [key, ok, why] of checks) {
               const value = catalogue[key];
               if (typeof value !== "string" || value.trim() === "") {
                 console.error(`::error::${key} falta o está vacía en es.json`);
                 process.exit(1);
               }
-              if (english.test(value)) {
-                console.error(`::error::${key} sigue en inglés: ${value}`);
+              if (!ok(value)) {
+                console.error(`::error::${key} ${why}: ${value}`);
                 process.exit(1);
               }
-              console.log(`ok  ${key}: ${value.slice(0, 70)}`);
+              console.log(`ok  ${key}: ${value.slice(0, 80)}`);
             }
           '
 
