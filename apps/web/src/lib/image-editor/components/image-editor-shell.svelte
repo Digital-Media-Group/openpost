@@ -3225,12 +3225,12 @@
 				saved={editor.saveState === 'saved'}
 				savingLabel={m.common_saving()}
 				savedLabel={guestMode ? m.image_editor_public_saved_device() : m.video_editor_saved_cloud()}
-				class="max-sm:mr-2 max-sm:px-0"
+				class="shrink max-sm:mr-2 max-sm:px-0"
 				testId="image-editor-save-indicator"
 			/>
 			{#if ['local', 'offline', 'conflict', 'error'].includes(editor.saveState)}
 				<div
-					class="hidden max-w-52 min-w-0 items-center gap-1.5 px-2 text-xs text-muted-foreground sm:flex"
+					class="hidden max-w-52 shrink-0 items-center gap-1.5 px-2 text-xs text-muted-foreground sm:flex"
 					title={editor.saveMessage}
 				>
 					<span class="size-1.5 shrink-0 rounded-full bg-warning-foreground"></span>

@@ -1590,6 +1590,7 @@
 	"sidebar_delete_draft_success": "Brouillon supprimé.",
 	"sidebar_thread_draft": "Brouillon de thread",
 	"sidebar_full_calendar": "Calendrier complet",
+	"sidebar_source_link": "© 2026 OpenPost Contributors · Modifié par Digital Media Group, 9 oct. 2026 · AGPL-3.0-only",
 	"sidebar_source_notice": "Copyright 2026 OpenPost Contributors. AGPL-3.0-only, no warranty. This is a MODIFIED VERSION of OpenPost, prepared by Digital Media Group on 9 October 2026 (Spanish translation and custom branding). Corresponding source for this version: https://github.com/Digital-Media-Group/openpost",
 	"sidebar_view_source": "Source",
 	"sidebar_view_license": "Licence",

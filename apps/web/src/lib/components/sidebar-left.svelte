@@ -365,16 +365,20 @@
 			</Sidebar.MenuItem>
 		</Sidebar.Menu>
 		<!-- Aviso legal AGPL: versión modificada (§5a) y oferta de código fuente
-		     (§13). Es texto obligatorio, no decoración: se muestra tal cual,
-		     sin recortar. En la barra plegada no cabe, así que solo aparece
-		     desplegada. -->
+		     (§13). Es texto obligatorio, no decoración.
+		     Va en dos líneas y no en las seis o siete del texto completo porque
+		     el pie es de altura fija: el texto íntegro medía 82 px (inglés) y
+		     96 px (español), y se los quitaba al contenido desplazable de la
+		     barra. El texto completo sigue disponible en el `title` del enlace.
+		     En la barra plegada no cabe, así que solo aparece desplegada. -->
 		{#if sidebar.state !== 'collapsed'}
 			<a
 				href="https://github.com/Digital-Media-Group/openpost"
 				target="_blank"
 				rel="noopener noreferrer"
+				title={m.sidebar_source_notice()}
 				class="mt-1 block px-2 pb-1 text-[10px] leading-snug text-sidebar-foreground/60 transition-colors hover:text-sidebar-foreground hover:underline"
-				data-testid="sidebar-source-notice">{m.sidebar_source_notice()}</a
+				data-testid="sidebar-source-notice">{m.sidebar_source_link()}</a
 			>
 		{/if}
 	</Sidebar.Footer>

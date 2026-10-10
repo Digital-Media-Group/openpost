@@ -1590,6 +1590,7 @@
 	"sidebar_delete_draft_success": "임시저장을 삭제했습니다.",
 	"sidebar_thread_draft": "스레드 임시저장",
 	"sidebar_full_calendar": "전체 달력",
+	"sidebar_source_link": "© 2026 OpenPost Contributors · Digital Media Group이 수정, 2026년 10월 9일 · AGPL-3.0-only",
 	"sidebar_source_notice": "Copyright 2026 OpenPost Contributors. AGPL-3.0-only, no warranty. This is a MODIFIED VERSION of OpenPost, prepared by Digital Media Group on 9 October 2026 (Spanish translation and custom branding). Corresponding source for this version: https://github.com/Digital-Media-Group/openpost",
 	"sidebar_view_source": "소스",
 	"sidebar_view_license": "라이선스",
