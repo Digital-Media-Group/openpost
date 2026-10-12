@@ -11665,12 +11665,13 @@
 						"maxLength": 35,
 						"type": "string"
 					},
-					"slots": {
+					"plan": {
 						"description": "The plan to land, exactly as it was planned",
 						"items": {
 							"$ref": "#/components/schemas/PublicationPlanSlot"
 						},
 						"maxItems": 14,
+						"minItems": 1,
 						"type": ["array", "null"]
 					},
 					"social_account_ids": {
@@ -11694,15 +11695,7 @@
 						"type": "string"
 					}
 				},
-				"required": [
-					"workspace_id",
-					"brief",
-					"start_date",
-					"slots",
-					"hour",
-					"social_account_ids",
-					"slots"
-				],
+				"required": ["workspace_id", "brief", "start_date", "hour", "social_account_ids", "plan"],
 				"type": "object"
 			},
 			"LandPublicationPlanOutputBody": {
@@ -11713,6 +11706,10 @@
 						"examples": ["https://example.com/api/v1/schemas/LandPublicationPlanOutputBody.json"],
 						"format": "uri",
 						"readOnly": true,
+						"type": "string"
+					},
+					"problem": {
+						"description": "Set when only some drafts were created",
 						"type": "string"
 					},
 					"publications": {

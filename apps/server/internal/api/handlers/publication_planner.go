@@ -98,12 +98,11 @@ type LandPublicationPlanInput struct {
 		Brief       string                `json:"brief" maxLength:"2000" doc:"What the period is about"`
 		StartDate   string                `json:"start_date" doc:"First day of the period, as YYYY-MM-DD"`
 		Days        int                   `json:"days,omitempty" minimum:"1" maximum:"31" doc:"Length of the period in days; defaults to 7"`
-		Slots       int                   `json:"slots" minimum:"1" maximum:"14" doc:"How many posts the period should contain"`
 		Hour        int                   `json:"hour" minimum:"0" maximum:"23" doc:"Local hour of day each post is planned for"`
 		TimeZone    string                `json:"time_zone,omitempty" doc:"IANA time zone the hour is local to; defaults to UTC"`
 		AccountIDs  []string              `json:"social_account_ids" maxItems:"20" doc:"Destinations every planned post targets"`
 		Locale      string                `json:"locale,omitempty" maxLength:"35" doc:"Language tag the drafts should be written in"`
-		Plan        []PublicationPlanSlot `json:"slots" maxItems:"14" doc:"The plan to land, exactly as it was planned"`
+		Plan        []PublicationPlanSlot `json:"plan" minItems:"1" maxItems:"14" doc:"The plan to land, exactly as it was planned"`
 	}
 }
 
@@ -117,6 +116,10 @@ type LandedPublication struct {
 type LandPublicationPlanOutput struct {
 	Body struct {
 		Publications []LandedPublication `json:"publications"`
+		// Problem is set when the plan landed only partly. A partial landing is a
+		// 200 with this set rather than an error response, because an error
+		// response has no body and would hide the drafts that were created.
+		Problem string `json:"problem,omitempty" doc:"Set when only some drafts were created"`
 	}
 }
 
@@ -158,12 +161,15 @@ func (h *PublicationPlannerHandler) land(ctx context.Context, input *LandPublica
 	if strings.TrimSpace(input.IdempotencyKey) == "" {
 		return nil, huma.Error400BadRequest("Idempotency-Key is required")
 	}
+	// The plan being landed is the source of truth for how many posts there are.
+	// Deriving the count from it removes a whole class of client/server
+	// disagreement, where a stale count would validate a plan of a different size.
 	request, err := h.prepare(ctx, publicationPlanBody{
 		WorkspaceID: input.Body.WorkspaceID,
 		Brief:       input.Body.Brief,
 		StartDate:   input.Body.StartDate,
 		Days:        input.Body.Days,
-		Slots:       input.Body.Slots,
+		Slots:       len(input.Body.Plan),
 		Hour:        input.Body.Hour,
 		TimeZone:    input.Body.TimeZone,
 		AccountIDs:  input.Body.AccountIDs,
@@ -183,12 +189,15 @@ func (h *PublicationPlannerHandler) land(ctx context.Context, input *LandPublica
 
 	result, err := h.planner.Land(ctx, middleware.GetUserID(ctx), request, plan, h.publications)
 	if err != nil {
-		// A partial landing still created drafts; report them rather than
-		// implying the request did nothing.
+		// A partial landing still created drafts. An error response carries no
+		// body, so reporting the failure that way would hide the drafts that now
+		// exist and invite the author to land the plan again. Answer 200 with the
+		// drafts that were created and name the problem instead.
 		if len(result.Publications) > 0 {
 			out := &LandPublicationPlanOutput{}
 			out.Body.Publications = landedPublications(result)
-			return out, publicationPlanError(err)
+			out.Body.Problem = "Only some drafts were created. The rest failed; the drafts already created were kept."
+			return out, nil
 		}
 		return nil, publicationPlanError(err)
 	}

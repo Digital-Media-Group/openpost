@@ -1188,6 +1188,9 @@
 		title={m.activity_title()}
 	>
 		{#snippet actions()}
+			<Button href={resolve('/calendar/plan')} variant="outline" size="sm"
+				><ThemeIcon role="idea" class="mr-1.5 size-3.5" />{m.planner_title()}</Button
+			>
 			<Button href={resolve('/')} variant="focal" size="sm"
 				><ThemeIcon role="add" class="mr-1.5 size-3.5" />{m.activity_new_post()}</Button
 			>

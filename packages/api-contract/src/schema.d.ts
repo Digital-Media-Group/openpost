@@ -11231,7 +11231,7 @@ export interface components {
             /** @description Language tag the drafts should be written in */
             locale?: string;
             /** @description The plan to land, exactly as it was planned */
-            slots: components["schemas"]["PublicationPlanSlot"][] | null;
+            plan: components["schemas"]["PublicationPlanSlot"][] | null;
             /** @description Destinations every planned post targets */
             social_account_ids: string[] | null;
             /** @description First day of the period, as YYYY-MM-DD */
@@ -11248,6 +11248,8 @@ export interface components {
              * @example https://example.com/api/v1/schemas/LandPublicationPlanOutputBody.json
              */
             readonly $schema?: string;
+            /** @description Set when only some drafts were created */
+            problem?: string;
             publications: components["schemas"]["LandedPublication"][] | null;
         };
         LandedPublication: {
