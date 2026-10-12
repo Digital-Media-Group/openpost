@@ -5496,7 +5496,7 @@
 					},
 					"role": {
 						"description": "Workspace role to grant",
-						"enum": ["admin", "editor", "viewer"],
+						"enum": ["admin", "editor", "client", "viewer"],
 						"type": "string"
 					}
 				},
@@ -23787,7 +23787,7 @@
 					},
 					"role": {
 						"description": "Replacement workspace role",
-						"enum": ["admin", "editor", "viewer"],
+						"enum": ["admin", "editor", "client", "viewer"],
 						"type": "string"
 					},
 					"status": {
@@ -25603,7 +25603,7 @@
 					},
 					"role": {
 						"description": "Workspace role",
-						"enum": ["admin", "editor", "viewer"],
+						"enum": ["admin", "editor", "client", "viewer"],
 						"type": "string"
 					},
 					"status": {
@@ -25633,6 +25633,10 @@
 						"description": "Whether the current user can change workspace content",
 						"type": "boolean"
 					},
+					"can_connect": {
+						"description": "Whether the current user can connect or reconnect social accounts",
+						"type": "boolean"
+					},
 					"color": {
 						"type": "string"
 					},
@@ -25653,7 +25657,7 @@
 					},
 					"role": {
 						"description": "Current user's workspace role",
-						"enum": ["admin", "editor", "viewer"],
+						"enum": ["admin", "editor", "client", "viewer"],
 						"type": "string"
 					},
 					"sso_authenticated": {
@@ -25687,6 +25691,7 @@
 					"created_at",
 					"role",
 					"can_edit",
+					"can_connect",
 					"sso_required",
 					"sso_authenticated",
 					"sso_identity_linked"
@@ -61672,7 +61677,7 @@
 						"schema": {
 							"default": "all",
 							"description": "Filter by role",
-							"enum": ["all", "admin", "editor", "viewer"],
+							"enum": ["all", "admin", "editor", "client", "viewer"],
 							"type": "string"
 						}
 					},

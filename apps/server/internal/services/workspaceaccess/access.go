@@ -19,6 +19,14 @@ const (
 	LevelRead       Level = "read"
 	LevelEdit       Level = "edit"
 	LevelAdminister Level = "administer"
+	// LevelConnect covers starting and completing an account connection. It sits
+	// below LevelEdit on purpose: connecting an account changes who may publish
+	// as that account, but it does not change any content.
+	LevelConnect Level = "connect"
+	// LevelApprove covers deciding a parked approval. It is separate from
+	// LevelAdminister so a role can be trusted with a decision without being
+	// trusted with the workspace.
+	LevelApprove Level = "approve"
 )
 
 // ActorFacts are the transport-independent facts known after authentication.
@@ -228,19 +236,35 @@ func normalizeActor(actor ActorFacts) ActorFacts {
 	return actor
 }
 
+// normalizeLevel canonicalizes a requested level. An unrecognized level falls
+// back to LevelRead, so every level this package can be asked for must be
+// listed here; an omission would silently downgrade the requirement rather
+// than deny it.
 func normalizeLevel(level Level) Level {
 	switch level {
-	case LevelEdit, LevelAdminister:
+	case LevelEdit, LevelAdminister, LevelConnect, LevelApprove:
 		return level
 	default:
 		return LevelRead
 	}
 }
 
+// roleMeetsLevel is the single place a role is turned into a capability. Every
+// role is listed explicitly in each branch so adding one is a deliberate act.
 func roleMeetsLevel(role string, level Level) bool {
 	switch normalizeLevel(level) {
 	case LevelRead:
-		return role == models.WorkspaceRoleAdmin || role == models.WorkspaceRoleEditor || role == models.WorkspaceRoleViewer
+		return role == models.WorkspaceRoleAdmin ||
+			role == models.WorkspaceRoleEditor ||
+			role == models.WorkspaceRoleClient ||
+			role == models.WorkspaceRoleViewer
+	case LevelConnect:
+		return role == models.WorkspaceRoleAdmin ||
+			role == models.WorkspaceRoleEditor ||
+			role == models.WorkspaceRoleClient
+	case LevelApprove:
+		return role == models.WorkspaceRoleAdmin ||
+			role == models.WorkspaceRoleClient
 	case LevelEdit:
 		return role == models.WorkspaceRoleAdmin || role == models.WorkspaceRoleEditor
 	case LevelAdminister:
@@ -248,6 +272,16 @@ func roleMeetsLevel(role string, level Level) bool {
 	default:
 		return false
 	}
+}
+
+// RoleMeetsLevel exposes the role-to-capability mapping for callers that have
+// already authorized the actor and only need to report a finer-grained
+// capability, such as a workspace summary telling the UI whether to offer the
+// account-connection controls. It answers only about the role: it does not
+// evaluate membership, credential scope, or identity policy, so it must never
+// replace Authorize for an action that changes state.
+func RoleMeetsLevel(role string, level Level) bool {
+	return roleMeetsLevel(role, level)
 }
 
 func firstNonEmpty(values ...string) string {

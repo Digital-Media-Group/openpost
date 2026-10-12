@@ -8667,7 +8667,7 @@ export interface components {
              * @description Workspace role to grant
              * @enum {string}
              */
-            role: "admin" | "editor" | "viewer";
+            role: "admin" | "editor" | "client" | "viewer";
         };
         CreateWorkspaceOutputBody: {
             /**
@@ -16094,7 +16094,7 @@ export interface components {
              * @description Replacement workspace role
              * @enum {string}
              */
-            role?: "admin" | "editor" | "viewer";
+            role?: "admin" | "editor" | "client" | "viewer";
             /**
              * @description Replacement workspace access state
              * @enum {string}
@@ -16836,7 +16836,7 @@ export interface components {
              * @description Workspace role
              * @enum {string}
              */
-            role: "admin" | "editor" | "viewer";
+            role: "admin" | "editor" | "client" | "viewer";
             /**
              * @description Workspace access state
              * @enum {string}
@@ -16851,6 +16851,8 @@ export interface components {
             avatar_url: string;
             /** @description Whether the current user can change workspace content */
             can_edit: boolean;
+            /** @description Whether the current user can connect or reconnect social accounts */
+            can_connect: boolean;
             color: string;
             created_at: string;
             id: string;
@@ -16861,7 +16863,7 @@ export interface components {
              * @description Current user's workspace role
              * @enum {string}
              */
-            role: "admin" | "editor" | "viewer";
+            role: "admin" | "editor" | "client" | "viewer";
             /** @description Whether the current credential satisfies organization SSO */
             sso_authenticated: boolean;
             /** @description Whether the required provider is explicitly linked to this user */
@@ -43979,7 +43981,7 @@ export interface operations {
                 /** @description Case-insensitive member or invitation email search */
                 q?: string;
                 /** @description Filter by role */
-                role?: "all" | "admin" | "editor" | "viewer";
+                role?: "all" | "admin" | "editor" | "client" | "viewer";
                 /** @description Filter by member access or exact invitation lifecycle state */
                 status?: "all" | "active" | "inactive" | "pending" | "created" | "queued" | "sent" | "delivered" | "delivery_failed" | "delivery_unavailable" | "expired" | "revoked" | "accepted";
             };

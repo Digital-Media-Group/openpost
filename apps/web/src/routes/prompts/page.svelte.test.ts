@@ -260,6 +260,7 @@ function workspace(id: string): Workspace {
 		name: id,
 		avatar_url: '',
 		can_edit: true,
+		can_connect: true,
 		color: '#f97316',
 		created_at: '2026-09-01T10:00:00Z',
 		organization_id: 'organization-1',

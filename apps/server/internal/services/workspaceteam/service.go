@@ -1306,7 +1306,7 @@ func NormalizeEmail(email string) string { return strings.ToLower(strings.TrimSp
 
 func ValidRole(role string) bool {
 	switch role {
-	case models.WorkspaceRoleAdmin, models.WorkspaceRoleEditor, models.WorkspaceRoleViewer:
+	case models.WorkspaceRoleAdmin, models.WorkspaceRoleEditor, models.WorkspaceRoleClient, models.WorkspaceRoleViewer:
 		return true
 	default:
 		return false

@@ -45,6 +45,21 @@ func workspaceAdminAllowed(ctx context.Context, db bun.IDB, workspaceID, userID 
 	return decision.Allowed, err
 }
 
+// workspaceConnectAllowed answers whether this actor may connect or disconnect a
+// social account. It is deliberately weaker than edit: connecting an account is
+// not authoring content.
+func workspaceConnectAllowed(ctx context.Context, db bun.IDB, workspaceID, userID string) (bool, error) {
+	decision, err := workspaceDecision(ctx, db, workspaceID, userID, workspaceaccess.LevelConnect)
+	return decision.Allowed, err
+}
+
+// workspaceApproveAllowed answers whether this actor may decide a parked
+// approval without being able to administer the workspace.
+func workspaceApproveAllowed(ctx context.Context, db bun.IDB, workspaceID, userID string) (bool, error) {
+	decision, err := workspaceDecision(ctx, db, workspaceID, userID, workspaceaccess.LevelApprove)
+	return decision.Allowed, err
+}
+
 func workspaceRole(ctx context.Context, db bun.IDB, workspaceID, userID string) (string, bool, error) {
 	decision, err := workspaceDecision(ctx, db, workspaceID, userID, workspaceaccess.LevelRead)
 	if err != nil || !decision.Allowed {

@@ -44,7 +44,7 @@
 	} from '../../routes/settings/settings-data';
 	import { ProtectedIcon, ThemeIcon } from '$lib/themes/icons';
 
-	type WorkspaceRole = 'admin' | 'editor' | 'viewer';
+	type WorkspaceRole = 'admin' | 'editor' | 'client' | 'viewer';
 	type InvitationStatus = WorkspaceInvitation['status'];
 	type TeamStatus = 'all' | 'active' | 'inactive' | 'pending' | InvitationStatus;
 	type DestructiveActionTarget =
@@ -142,6 +142,7 @@
 		{ value: 'all', label: m.settings_team_all_roles() },
 		{ value: 'admin', label: roleLabel('admin') },
 		{ value: 'editor', label: roleLabel('editor') },
+		{ value: 'client', label: roleLabel('client') },
 		{ value: 'viewer', label: roleLabel('viewer') }
 	]);
 	const editableRoleOptions = $derived(roleOptions.slice(1));
@@ -647,12 +648,14 @@
 
 	function roleLabel(role: string) {
 		if (role === 'admin') return m.settings_role_admin();
+		if (role === 'client') return m.settings_role_client();
 		if (role === 'viewer') return m.settings_role_viewer();
 		return m.settings_role_editor();
 	}
 
 	function roleDescription(role: string) {
 		if (role === 'admin') return m.settings_role_admin_description();
+		if (role === 'client') return m.settings_role_client_description();
 		if (role === 'viewer') return m.settings_role_viewer_description();
 		return m.settings_role_editor_description();
 	}
@@ -942,7 +945,12 @@
 											disabled={Boolean(busyKey)}
 											class="w-full sm:w-40"
 											onValueChange={(role) => {
-												if (role === 'admin' || role === 'editor' || role === 'viewer') {
+												if (
+													role === 'admin' ||
+													role === 'editor' ||
+													role === 'client' ||
+													role === 'viewer'
+												) {
 													void updateMember(member, { role });
 												}
 											}}

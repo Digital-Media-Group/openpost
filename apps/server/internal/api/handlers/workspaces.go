@@ -108,8 +108,9 @@ type WorkspaceResponse struct {
 	AvatarURL          string `json:"avatar_url"`
 	Color              string `json:"color"`
 	WorkspaceCreatedAt string `json:"created_at"`
-	Role               string `json:"role" enum:"admin,editor,viewer" doc:"Current user's workspace role"`
+	Role               string `json:"role" enum:"admin,editor,client,viewer" doc:"Current user's workspace role"`
 	CanEdit            bool   `json:"can_edit" doc:"Whether the current user can change workspace content"`
+	CanConnect         bool   `json:"can_connect" doc:"Whether the current user can connect or reconnect social accounts"`
 	SSORequired        bool   `json:"sso_required" doc:"Whether this workspace requires organization SSO"`
 	SSOAuthenticated   bool   `json:"sso_authenticated" doc:"Whether the current credential satisfies organization SSO"`
 	SSOProviderID      string `json:"sso_provider_id,omitempty" doc:"Identity provider required for this workspace"`
@@ -277,7 +278,7 @@ type OrganizationTeamOutput struct {
 type WorkspaceMemberResponse struct {
 	UserID        string  `json:"user_id" doc:"User ID"`
 	Email         string  `json:"email" doc:"User email"`
-	Role          string  `json:"role" enum:"admin,editor,viewer" doc:"Workspace role"`
+	Role          string  `json:"role" enum:"admin,editor,client,viewer" doc:"Workspace role"`
 	Status        string  `json:"status" enum:"active,inactive" doc:"Workspace access state"`
 	CreatedAt     string  `json:"created_at" doc:"When access was first granted"`
 	UpdatedAt     string  `json:"updated_at" doc:"When access last changed"`
@@ -314,7 +315,7 @@ type WorkspaceTeamOutput struct {
 type WorkspaceTeamInput struct {
 	PathID string `path:"id" doc:"Workspace ID"`
 	Query  string `query:"q" maxLength:"200" doc:"Case-insensitive member or invitation email search"`
-	Role   string `query:"role" enum:"all,admin,editor,viewer" default:"all" doc:"Filter by role"`
+	Role   string `query:"role" enum:"all,admin,editor,client,viewer" default:"all" doc:"Filter by role"`
 	Status string `query:"status" enum:"all,active,inactive,pending,created,queued,sent,delivered,delivery_failed,delivery_unavailable,expired,revoked,accepted" default:"all" doc:"Filter by member access or exact invitation lifecycle state"`
 }
 
@@ -322,7 +323,7 @@ type CreateWorkspaceInvitationInput struct {
 	PathID string `path:"id" doc:"Workspace ID"`
 	Body   struct {
 		Email string `json:"email" format:"email" doc:"Email address to invite"`
-		Role  string `json:"role" enum:"admin,editor,viewer" doc:"Workspace role to grant"`
+		Role  string `json:"role" enum:"admin,editor,client,viewer" doc:"Workspace role to grant"`
 	}
 }
 
@@ -354,7 +355,7 @@ type UpdateWorkspaceMemberInput struct {
 	PathID string `path:"id" doc:"Workspace ID"`
 	UserID string `path:"user_id" doc:"Workspace member user ID"`
 	Body   struct {
-		Role   string `json:"role,omitempty" enum:"admin,editor,viewer" doc:"Replacement workspace role"`
+		Role   string `json:"role,omitempty" enum:"admin,editor,client,viewer" doc:"Replacement workspace role"`
 		Status string `json:"status,omitempty" enum:"active,inactive" doc:"Replacement workspace access state"`
 	}
 }

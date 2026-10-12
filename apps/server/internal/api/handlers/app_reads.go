@@ -155,6 +155,7 @@ func (r appReadModel) workspaces(ctx context.Context, userID string) ([]Workspac
 			WorkspaceCreatedAt: workspace.CreatedAt.Format(time.RFC3339),
 			Role:               workspace.Role,
 			CanEdit:            decision.Allowed && (workspace.Role == models.WorkspaceRoleAdmin || workspace.Role == models.WorkspaceRoleEditor),
+			CanConnect:         decision.Allowed && workspaceaccess.RoleMeetsLevel(workspace.Role, workspaceaccess.LevelConnect),
 			SSORequired:        decision.SSORequired,
 			SSOAuthenticated:   decision.Allowed,
 			SSOProviderID:      decision.ProviderID,

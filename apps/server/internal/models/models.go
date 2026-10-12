@@ -62,6 +62,10 @@ const (
 const (
 	WorkspaceRoleAdmin  = "admin"
 	WorkspaceRoleEditor = "editor"
+	// WorkspaceRoleClient may connect accounts and decide approvals, but may
+	// not author or change content. It is the role for the person who owns the
+	// accounts and the reputation without working in the product.
+	WorkspaceRoleClient = "client"
 	WorkspaceRoleViewer = "viewer"
 
 	WorkspaceMemberStatusActive   = "active"

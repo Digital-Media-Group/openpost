@@ -44,6 +44,7 @@ function workspace(id: string): AppBootstrap['workspaces'][number] {
 		organization_name: '',
 		role: 'admin',
 		can_edit: true,
+		can_connect: true,
 		sso_authenticated: false,
 		sso_identity_linked: false,
 		sso_required: false

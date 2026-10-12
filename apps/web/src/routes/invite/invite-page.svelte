@@ -65,6 +65,9 @@
 	let error = $state('');
 	let workspaceID = $state('');
 	let role = $state('');
+	// A client joins to connect the accounts they own, not to browse the
+	// workspace, so the acceptance screen offers that directly.
+	let isClientRole = $derived(role === 'client');
 	let workspaceRefreshError = $state('');
 	let workspaceRefreshPending = $state(false);
 	let acceptedWorkspaceRefreshContext = $state.raw<AcceptedWorkspaceRefreshContext | null>(null);
@@ -303,9 +306,17 @@
 			{:else if workspaceRefreshPending}
 				<InlineNotice tone="info" message={m.invite_refreshing_workspaces()} />
 			{:else}
-				<Button class="w-full" href={resolve('/')}>
-					{m.invite_open_workspace()}
-				</Button>
+				{#if isClientRole}
+					<!-- The point of a client is to connect the accounts they own and
+					     decide what goes out. Land them where that happens. -->
+					<Button class="w-full" href={resolve('/settings?tab=accounts')}>
+						{m.invite_connect_accounts()}
+					</Button>
+				{:else}
+					<Button class="w-full" href={resolve('/')}>
+						{m.invite_open_workspace()}
+					</Button>
+				{/if}
 			{/if}
 		</div>
 	{/if}

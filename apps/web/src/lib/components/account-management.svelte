@@ -117,6 +117,9 @@
 	let embedded = true;
 	let selectedWorkspaceId = $derived(workspace?.id ?? '');
 	let canEditWorkspace = $derived(workspace?.can_edit ?? false);
+	// Connecting an account is its own capability: a client may do it without
+	// being able to author content.
+	let canConnectWorkspace = $derived(workspace?.can_connect ?? canEditWorkspace);
 	let error = $state('');
 
 	const accountsQuery = createQuery(
@@ -1678,7 +1681,7 @@
 					{/if}
 				</div>
 
-				{#if canEditWorkspace}
+				{#if canConnectWorkspace}
 					<!-- Connect a Platform -->
 					<div>
 						<SectionHeader

@@ -170,8 +170,10 @@ func (s *Service) Cancel(ctx context.Context, actor workspaceaccess.ActorFacts, 
 
 // Approve binds approval to the current native publication revision. The next
 // scheduling command receives that revision and rejects intervening edits.
+// Deciding a parked approval is its own level: a client is trusted with the
+// decision without being trusted to administer the workspace.
 func (s *Service) Approve(ctx context.Context, actor workspaceaccess.ActorFacts, workspaceID, id string, expected, publicationRevision int) (Run, error) {
-	authority, err := s.authorize(ctx, actor, workspaceID, workspaceaccess.LevelAdminister)
+	authority, err := s.authorize(ctx, actor, workspaceID, workspaceaccess.LevelApprove)
 	if err != nil {
 		return Run{}, err
 	}

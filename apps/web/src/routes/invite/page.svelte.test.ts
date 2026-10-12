@@ -27,6 +27,7 @@ const acceptedWorkspace = {
 	name: 'Accepted Workspace',
 	organization_id: 'accepted-organization',
 	can_edit: true,
+	can_connect: true,
 	created_at: '2026-09-02T12:00:00Z',
 	avatar_url: '',
 	color: '',

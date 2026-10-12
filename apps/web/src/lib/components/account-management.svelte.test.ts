@@ -21,6 +21,7 @@ const workspace = {
 	name: 'Issue 62 Workspace',
 	organization_id: 'organization-62',
 	can_edit: true,
+	can_connect: true,
 	created_at: '2026-08-09T12:00:00Z',
 	avatar_url: '',
 	color: '',

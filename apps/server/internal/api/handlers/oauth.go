@@ -958,7 +958,7 @@ type ListPixelfedServersOutput struct {
 }
 
 func (h *OAuthHandler) ensureCanStartAccountConnection(ctx context.Context, workspaceID, userID string) error {
-	if err := h.checkWorkspaceEditAccess(ctx, workspaceID, userID); err != nil {
+	if err := h.checkWorkspaceConnectAccess(ctx, workspaceID, userID); err != nil {
 		return err
 	}
 	if err := h.accountSaver.CheckSocialAccountQuota(ctx, middleware.GetUserID(ctx), workspaceID); err != nil {
@@ -1303,7 +1303,7 @@ func (h *OAuthHandler) resolveOAuthCallbackSession(ctx context.Context, input *O
 		}
 	}
 
-	if err := h.checkWorkspaceEditAccess(ctx, workspaceID, userID); err != nil {
+	if err := h.checkWorkspaceConnectAccess(ctx, workspaceID, userID); err != nil {
 		log.Printf("[Callback] Workspace access check failed: %v", err)
 		resp, err := h.redirectWithError("workspace access denied", workspaceID)
 		return nil, resp, err
@@ -1404,7 +1404,7 @@ func (h *OAuthHandler) saveAccountSelectionAndRedirect(
 	tokenResp *platform.TokenResult,
 	selector platform.AccountSelectionAdapter,
 ) (*huma.StreamResponse, error) {
-	if err := h.checkWorkspaceEditAccess(ctx, workspaceID, userID); err != nil {
+	if err := h.checkWorkspaceConnectAccess(ctx, workspaceID, userID); err != nil {
 		log.Printf("[Callback] Workspace access check failed: %v", err)
 		return h.redirectWithError("workspace access denied", workspaceID)
 	}
@@ -2381,7 +2381,7 @@ func (h *OAuthHandler) loadPendingAccountSelection(ctx context.Context, connecti
 		}
 		return nil, huma.Error500InternalServerError("failed to fetch account selection")
 	}
-	if err := h.checkWorkspaceEditAccess(ctx, pending.WorkspaceID, userID); err != nil {
+	if err := h.checkWorkspaceConnectAccess(ctx, pending.WorkspaceID, userID); err != nil {
 		return nil, err
 	}
 	return &pending, nil
@@ -2474,6 +2474,21 @@ func (h *OAuthHandler) checkWorkspaceEditAccess(ctx context.Context, workspaceID
 	}
 	if !allowed {
 		return huma.Error403Forbidden("workspace editor role required")
+	}
+	return nil
+}
+
+// checkWorkspaceConnectAccess gates starting and completing an account
+// connection. A client may do this without being able to author content, which
+// is the whole point of the role. Disconnecting an account stays at the edit
+// level: it is destructive, and it is not what the role exists for.
+func (h *OAuthHandler) checkWorkspaceConnectAccess(ctx context.Context, workspaceID, userID string) error {
+	allowed, err := workspaceConnectAllowed(ctx, h.db, workspaceID, userID)
+	if err != nil {
+		return huma.Error500InternalServerError("failed to check workspace access")
+	}
+	if !allowed {
+		return huma.Error403Forbidden("workspace role cannot connect accounts")
 	}
 	return nil
 }
