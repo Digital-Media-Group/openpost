@@ -40,4 +40,41 @@ describe('notification topic presentation', () => {
 		expect(notificationTopicLabel(backendDefinition.id)).toBe('Notificação');
 		expect(notificationTopicEmailFrequencies(backendDefinition)).toEqual(['immediate']);
 	});
+
+	it('presents the approval topics with localized copy', () => {
+		setLocale('en', { reload: false });
+		expect(notificationTopicLabel('approval_requested')).toBe('Approval requested');
+		expect(notificationTopicLabel('approval_expired')).toBe('Approval expired');
+		expect(notificationTopicDescription('approval_requested')).not.toBe('Notification');
+		expect(notificationTopicDescription('approval_expired')).not.toBe('Notification');
+
+		setLocale('es', { reload: false });
+		expect(notificationTopicLabel('approval_requested')).toBe('Aprobación solicitada');
+		expect(notificationTopicLabel('approval_expired')).toBe('Aprobación caducada');
+	});
+
+	it('groups the approval topics under publishing', () => {
+		setLocale('en', { reload: false });
+		const definition = (id: string): NotificationTopicDefinition => ({
+			...backendDefinition,
+			id,
+			group: 'publishing',
+			transactional: false,
+			critical_in_app: false,
+			in_app_mutable: true,
+			email_mutable: true,
+			mute_applies: true,
+			email_frequencies: ['off', 'immediate', 'daily'],
+			default_preference: { in_app: true, email_frequency: 'off' }
+		});
+		expect(
+			notificationTopicGroups([definition('approval_requested'), definition('approval_expired')])
+		).toEqual([
+			{
+				id: 'publishing',
+				label: 'Publishing',
+				topics: [definition('approval_requested'), definition('approval_expired')]
+			}
+		]);
+	});
 });

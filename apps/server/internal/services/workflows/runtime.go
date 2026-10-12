@@ -162,6 +162,11 @@ func (s *Service) finishRunStep(ctx context.Context, record runRecord, results [
 		committed = true
 		current.Revision++
 		current.State = state
+		if state == StateApproval {
+			if err := s.recordApprovalRequested(ctx, tx, current, results); err != nil {
+				return err
+			}
+		}
 		if state == StateQueued || state == StateWaiting {
 			runAt := time.Now().UTC()
 			if wakeAt != nil {

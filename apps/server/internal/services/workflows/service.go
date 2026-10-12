@@ -17,6 +17,7 @@ import (
 	"github.com/openpost/backend/internal/idempotency"
 	"github.com/openpost/backend/internal/netguard"
 	servicecrypto "github.com/openpost/backend/internal/services/crypto"
+	"github.com/openpost/backend/internal/services/notifications"
 	"github.com/openpost/backend/internal/services/organizationguard"
 	"github.com/openpost/backend/internal/services/workspaceaccess"
 	"github.com/uptrace/bun"
@@ -32,6 +33,7 @@ type Service struct {
 	actions       Actions
 	encryptor     *servicecrypto.TokenEncryptor
 	client        *http.Client
+	notifications *notifications.Service
 }
 
 func NewService(db *bun.DB, actions Actions, encryptor *servicecrypto.TokenEncryptor) *Service {
@@ -39,6 +41,12 @@ func NewService(db *bun.DB, actions Actions, encryptor *servicecrypto.TokenEncry
 }
 
 func (s *Service) SetTelemetry(recorder telemetry.Recorder) { s.telemetry = recorder }
+
+// SetNotificationService enables approval notifications. A workflow service
+// without one still runs; it simply stays silent at the approval transitions.
+func (s *Service) SetNotificationService(service *notifications.Service) {
+	s.notifications = service
+}
 
 func (s *Service) authorize(ctx context.Context, actor workspaceaccess.ActorFacts, workspaceID string, level workspaceaccess.Level) (workspaceaccess.StoredAuthority, error) {
 	decision, err := workspaceaccess.NewAuthorizer(s.db).Authorize(ctx, workspaceID, actor, level)

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import { tick } from 'svelte';
 	import { createQuery } from '@tanstack/svelte-query';
 	import {
@@ -24,6 +25,9 @@
 	import { Button } from '$lib/components/ui/button';
 	import { ThemeIcon } from '$lib/themes/icons';
 	import { m } from '$lib/paraglide/messages';
+	// An approval notification links straight to the run that is waiting, so the
+	// page opens on that run instead of asking the reader to find it again.
+	const requestedRun = page.url.searchParams.get('run') ?? '';
 	let deleting = $state<Workflow | null>(null),
 		deleteOpen = $state(false);
 	const workspaceID = $derived(workspaceCtx.currentWorkspace?.id ?? '');
@@ -33,8 +37,8 @@
 		repostAutomationQueryOptions(schedulingQueryAPI, workspaceID)
 	);
 	const runsQuery = createQuery(() => workflowRunsQueryOptions(workflowQueryAPI, workspaceID));
-	let tab = $state<'workflows' | 'runs' | 'templates'>('workflows'),
-		selectedRun = $state(''),
+	let tab = $state<'workflows' | 'runs' | 'templates'>(requestedRun ? 'runs' : 'workflows'),
+		selectedRun = $state(requestedRun),
 		busy = $state(false),
 		error = $state('');
 	let runList = $state<HTMLDivElement | null>(null);
