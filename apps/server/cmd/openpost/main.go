@@ -78,6 +78,7 @@ import (
 	"github.com/openpost/backend/internal/services/proxyauth"
 	"github.com/openpost/backend/internal/services/publicationbuilder"
 	"github.com/openpost/backend/internal/services/publicationdiscovery"
+	"github.com/openpost/backend/internal/services/publicationplanner"
 	"github.com/openpost/backend/internal/services/publicurl"
 	"github.com/openpost/backend/internal/services/publisher"
 	repostservice "github.com/openpost/backend/internal/services/reposts"
@@ -669,6 +670,7 @@ func main() {
 	var publicSourceLoader sourcecontext.Loader
 	var publicationBuilderApplication *publicationbuilder.Application
 	var publicationBuilderService *publicationbuilder.Service
+	var publicationWeekPlanner *publicationplanner.Service
 	var publicationDiscoveryService publicationdiscovery.Discoverer
 	if contentGenerator != nil {
 		publicSourceLoader, err = sourcecontext.New(sourcecontext.Config{})
@@ -678,6 +680,10 @@ func main() {
 		publicationBuilderService, err = publicationbuilder.New(contentGenerator, publicationbuilder.Config{Model: cfg.TextGenerationModel, Timeout: 180 * time.Second, Decider: decisionGenerator, DecisionModel: cfg.WorkflowDecisionModel})
 		if err != nil {
 			fatalfWithDiagnostics(diagnosticsReporter, "failed to initialize publication builder: %v", err)
+		}
+		publicationWeekPlanner, err = publicationplanner.New(contentGenerator, cfg.TextGenerationModel)
+		if err != nil {
+			fatalfWithDiagnostics(diagnosticsReporter, "failed to initialize publication planner: %v", err)
 		}
 		publicationBuilderApplication, err = publicationbuilder.NewApplication(
 			db,
@@ -902,6 +908,7 @@ func main() {
 		RepurposeSuggestions:      repurposeSuggestions,
 		ImageGeneration:           imageGeneration,
 		PublicationPlanner:        publicationBuilderService,
+		PublicationWeekPlanner:    publicationWeekPlanner,
 		PublicationDiscovery:      publicationDiscoveryService,
 		Entitlement:               entitlementService,
 		TokenEncryptor:            tokenEncryptor,

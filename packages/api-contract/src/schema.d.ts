@@ -4534,6 +4534,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/publication-plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Plan a period of drafts without creating anything */
+        post: operations["plan-publication-week"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/publication-plans/land": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create one draft per planned post */
+        post: operations["land-publication-plan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/publications": {
         parameters: {
             query?: never;
@@ -11175,6 +11209,54 @@ export interface components {
             readonly $schema?: string;
             joined: boolean;
         };
+        LandPublicationPlanInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/api/v1/schemas/LandPublicationPlanInputBody.json
+             */
+            readonly $schema?: string;
+            /** @description What the period is about */
+            brief: string;
+            /**
+             * Format: int64
+             * @description Length of the period in days; defaults to 7
+             */
+            days?: number;
+            /**
+             * Format: int64
+             * @description Local hour of day each post is planned for
+             */
+            hour: number;
+            /** @description Language tag the drafts should be written in */
+            locale?: string;
+            /** @description The plan to land, exactly as it was planned */
+            slots: components["schemas"]["PublicationPlanSlot"][] | null;
+            /** @description Destinations every planned post targets */
+            social_account_ids: string[] | null;
+            /** @description First day of the period, as YYYY-MM-DD */
+            start_date: string;
+            /** @description IANA time zone the hour is local to; defaults to UTC */
+            time_zone?: string;
+            /** @description Workspace ID */
+            workspace_id: string;
+        };
+        LandPublicationPlanOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/api/v1/schemas/LandPublicationPlanOutputBody.json
+             */
+            readonly $schema?: string;
+            publications: components["schemas"]["LandedPublication"][] | null;
+        };
+        LandedPublication: {
+            publication_id: string;
+            scheduled_at: string;
+            /** Format: int64 */
+            slot_index: number;
+            topic: string;
+        };
         LibraryReference: {
             id?: string;
             role: string;
@@ -13047,6 +13129,66 @@ export interface components {
             published_at: string;
             renditions: components["schemas"]["ContentOverview"][] | null;
             title: string;
+        };
+        PublicationPlanBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/api/v1/schemas/PublicationPlanBody.json
+             */
+            readonly $schema?: string;
+            /** @description What the period is about */
+            brief: string;
+            /**
+             * Format: int64
+             * @description Length of the period in days; defaults to 7
+             */
+            days?: number;
+            /**
+             * Format: int64
+             * @description Local hour of day each post is planned for
+             */
+            hour: number;
+            /** @description Language tag the drafts should be written in */
+            locale?: string;
+            /**
+             * Format: int64
+             * @description How many posts the period should contain
+             */
+            slots: number;
+            /** @description Destinations every planned post targets */
+            social_account_ids: string[] | null;
+            /** @description First day of the period, as YYYY-MM-DD */
+            start_date: string;
+            /** @description IANA time zone the hour is local to; defaults to UTC */
+            time_zone?: string;
+            /** @description Workspace ID */
+            workspace_id: string;
+        };
+        PublicationPlanResponse: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/api/v1/schemas/PublicationPlanResponse.json
+             */
+            readonly $schema?: string;
+            model: string;
+            slots: components["schemas"]["PublicationPlanSlot"][] | null;
+        };
+        PublicationPlanSlot: {
+            /** @description Why this post is worth reading */
+            angle: string;
+            /**
+             * Format: int64
+             * @description Position in the plan, starting at 1
+             */
+            index: number;
+            /** @description Planned local time for this post */
+            scheduled_at: string;
+            /** @description Draft text, publishable as written */
+            text: string;
+            /** @description Short topic for the post */
+            topic: string;
         };
         PublicationResponse: {
             /**
@@ -34799,6 +34941,165 @@ export interface operations {
             };
             /** @description Gateway Timeout */
             504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "plan-publication-week": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublicationPlanBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicationPlanResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "land-publication-plan": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Replay key scoped to the caller and Workspace */
+                "Idempotency-Key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LandPublicationPlanInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LandPublicationPlanOutputBody"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

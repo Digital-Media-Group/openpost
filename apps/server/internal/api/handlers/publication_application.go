@@ -120,6 +120,12 @@ func (h *PublicationHandler) BuilderApplication() publicationbuilder.Publication
 	return h.publicationApplicationForTesting()
 }
 
+// PlannerApplication exposes the same canonical mutation boundary to the AI
+// calendar planner, which creates one draft per planned post through it.
+func (h *PublicationHandler) PlannerApplication() publicationservice.Application {
+	return h.publicationApplicationForTesting()
+}
+
 func (h *PublicationHandler) publicationApplicationForTesting() publicationApplication {
 	return publicationApplication{
 		handler: h,

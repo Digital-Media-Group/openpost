@@ -51,6 +51,7 @@ import (
 	"github.com/openpost/backend/internal/services/providerreadiness"
 	"github.com/openpost/backend/internal/services/publicationbuilder"
 	"github.com/openpost/backend/internal/services/publicationdiscovery"
+	"github.com/openpost/backend/internal/services/publicationplanner"
 	"github.com/openpost/backend/internal/services/publicurl"
 	repostservice "github.com/openpost/backend/internal/services/reposts"
 	"github.com/openpost/backend/internal/services/repurpose"
@@ -92,6 +93,7 @@ type RouteDeps struct {
 	PublicationBuilder           *publicationbuilder.Application
 	RepurposeSuggestions         *repurpose.Service
 	PublicationPlanner           *publicationbuilder.Service
+	PublicationWeekPlanner       *publicationplanner.Service
 	PublicationDiscovery         publicationdiscovery.Discoverer
 	PublicMediaVerifier          *publicurl.MediaVerifier
 	Entitlement                  entitlements.Service
@@ -323,6 +325,9 @@ func RegisterHumaRoutes(api huma.API, deps RouteDeps) {
 	publicationBuildHandler.SetCapabilityResolver(capabilityResolverHandler)
 	publicationBuildHandler.SetPlanner(deps.PublicationPlanner)
 	publicationBuildHandler.RegisterRoutes(api)
+	publicationPlannerHandler := handlers.NewPublicationPlannerHandler(deps.DB, deps.Authenticator, deps.PublicationWeekPlanner)
+	publicationPlannerHandler.SetPublicationApplication(publicationHandler.PlannerApplication())
+	publicationPlannerHandler.RegisterRoutes(api)
 	handlers.NewRepurposeHandler(deps.RepurposeSuggestions, deps.Authenticator).RegisterRoutes(api)
 	handlers.NewImageGenerationHandler(deps.ImageGeneration, deps.Authenticator).RegisterRoutes(api)
 	registerWorkflowRoutes(api, deps, publicationHandler, publicationBuildHandler)

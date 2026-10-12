@@ -2627,7 +2627,7 @@
 						"type": "string"
 					},
 					"app_password": {
-						"description": "Bluesky app password (Settings > App Passwords)",
+						"description": "Bluesky app password (Settings \u003e App Passwords)",
 						"type": "string"
 					},
 					"handle": {
@@ -11631,6 +11631,120 @@
 				"required": ["joined"],
 				"type": "object"
 			},
+			"LandPublicationPlanInputBody": {
+				"additionalProperties": false,
+				"properties": {
+					"$schema": {
+						"description": "A URL to the JSON Schema for this object.",
+						"examples": ["https://example.com/api/v1/schemas/LandPublicationPlanInputBody.json"],
+						"format": "uri",
+						"readOnly": true,
+						"type": "string"
+					},
+					"brief": {
+						"description": "What the period is about",
+						"maxLength": 2000,
+						"type": "string"
+					},
+					"days": {
+						"description": "Length of the period in days; defaults to 7",
+						"format": "int64",
+						"maximum": 31,
+						"minimum": 1,
+						"type": "integer"
+					},
+					"hour": {
+						"description": "Local hour of day each post is planned for",
+						"format": "int64",
+						"maximum": 23,
+						"minimum": 0,
+						"type": "integer"
+					},
+					"locale": {
+						"description": "Language tag the drafts should be written in",
+						"maxLength": 35,
+						"type": "string"
+					},
+					"slots": {
+						"description": "The plan to land, exactly as it was planned",
+						"items": {
+							"$ref": "#/components/schemas/PublicationPlanSlot"
+						},
+						"maxItems": 14,
+						"type": ["array", "null"]
+					},
+					"social_account_ids": {
+						"description": "Destinations every planned post targets",
+						"items": {
+							"type": "string"
+						},
+						"maxItems": 20,
+						"type": ["array", "null"]
+					},
+					"start_date": {
+						"description": "First day of the period, as YYYY-MM-DD",
+						"type": "string"
+					},
+					"time_zone": {
+						"description": "IANA time zone the hour is local to; defaults to UTC",
+						"type": "string"
+					},
+					"workspace_id": {
+						"description": "Workspace ID",
+						"type": "string"
+					}
+				},
+				"required": [
+					"workspace_id",
+					"brief",
+					"start_date",
+					"slots",
+					"hour",
+					"social_account_ids",
+					"slots"
+				],
+				"type": "object"
+			},
+			"LandPublicationPlanOutputBody": {
+				"additionalProperties": false,
+				"properties": {
+					"$schema": {
+						"description": "A URL to the JSON Schema for this object.",
+						"examples": ["https://example.com/api/v1/schemas/LandPublicationPlanOutputBody.json"],
+						"format": "uri",
+						"readOnly": true,
+						"type": "string"
+					},
+					"publications": {
+						"items": {
+							"$ref": "#/components/schemas/LandedPublication"
+						},
+						"type": ["array", "null"]
+					}
+				},
+				"required": ["publications"],
+				"type": "object"
+			},
+			"LandedPublication": {
+				"additionalProperties": false,
+				"properties": {
+					"publication_id": {
+						"type": "string"
+					},
+					"scheduled_at": {
+						"type": "string"
+					},
+					"slot_index": {
+						"format": "int64",
+						"type": "integer"
+					},
+					"topic": {
+						"type": "string"
+					}
+				},
+				"required": ["slot_index", "publication_id", "scheduled_at", "topic"],
+				"type": "object"
+			},
 			"LibraryReference": {
 				"additionalProperties": false,
 				"properties": {
@@ -16098,6 +16212,122 @@
 					"engagement_measured",
 					"renditions"
 				],
+				"type": "object"
+			},
+			"PublicationPlanBody": {
+				"additionalProperties": false,
+				"properties": {
+					"$schema": {
+						"description": "A URL to the JSON Schema for this object.",
+						"examples": ["https://example.com/api/v1/schemas/PublicationPlanBody.json"],
+						"format": "uri",
+						"readOnly": true,
+						"type": "string"
+					},
+					"brief": {
+						"description": "What the period is about",
+						"maxLength": 2000,
+						"type": "string"
+					},
+					"days": {
+						"description": "Length of the period in days; defaults to 7",
+						"format": "int64",
+						"maximum": 31,
+						"minimum": 1,
+						"type": "integer"
+					},
+					"hour": {
+						"description": "Local hour of day each post is planned for",
+						"format": "int64",
+						"maximum": 23,
+						"minimum": 0,
+						"type": "integer"
+					},
+					"locale": {
+						"description": "Language tag the drafts should be written in",
+						"maxLength": 35,
+						"type": "string"
+					},
+					"slots": {
+						"description": "How many posts the period should contain",
+						"format": "int64",
+						"maximum": 14,
+						"minimum": 1,
+						"type": "integer"
+					},
+					"social_account_ids": {
+						"description": "Destinations every planned post targets",
+						"items": {
+							"type": "string"
+						},
+						"maxItems": 20,
+						"type": ["array", "null"]
+					},
+					"start_date": {
+						"description": "First day of the period, as YYYY-MM-DD",
+						"type": "string"
+					},
+					"time_zone": {
+						"description": "IANA time zone the hour is local to; defaults to UTC",
+						"type": "string"
+					},
+					"workspace_id": {
+						"description": "Workspace ID",
+						"type": "string"
+					}
+				},
+				"required": ["workspace_id", "brief", "start_date", "slots", "hour", "social_account_ids"],
+				"type": "object"
+			},
+			"PublicationPlanResponse": {
+				"additionalProperties": false,
+				"properties": {
+					"$schema": {
+						"description": "A URL to the JSON Schema for this object.",
+						"examples": ["https://example.com/api/v1/schemas/PublicationPlanResponse.json"],
+						"format": "uri",
+						"readOnly": true,
+						"type": "string"
+					},
+					"model": {
+						"type": "string"
+					},
+					"slots": {
+						"items": {
+							"$ref": "#/components/schemas/PublicationPlanSlot"
+						},
+						"type": ["array", "null"]
+					}
+				},
+				"required": ["slots", "model"],
+				"type": "object"
+			},
+			"PublicationPlanSlot": {
+				"additionalProperties": false,
+				"properties": {
+					"angle": {
+						"description": "Why this post is worth reading",
+						"type": "string"
+					},
+					"index": {
+						"description": "Position in the plan, starting at 1",
+						"format": "int64",
+						"type": "integer"
+					},
+					"scheduled_at": {
+						"description": "Planned local time for this post",
+						"type": "string"
+					},
+					"text": {
+						"description": "Draft text, publishable as written",
+						"type": "string"
+					},
+					"topic": {
+						"description": "Short topic for the post",
+						"type": "string"
+					}
+				},
+				"required": ["index", "scheduled_at", "topic", "angle", "text"],
 				"type": "object"
 			},
 			"PublicationResponse": {
@@ -49136,6 +49366,196 @@
 				},
 				"summary": "Discover current content opportunities",
 				"tags": ["Publication Discovery"]
+			}
+		},
+		"/publication-plans": {
+			"post": {
+				"operationId": "plan-publication-week",
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/PublicationPlanBody"
+							}
+						}
+					},
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/PublicationPlanResponse"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/problem+json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorModel"
+								}
+							}
+						},
+						"description": "Bad Request"
+					},
+					"403": {
+						"content": {
+							"application/problem+json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorModel"
+								}
+							}
+						},
+						"description": "Forbidden"
+					},
+					"422": {
+						"content": {
+							"application/problem+json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorModel"
+								}
+							}
+						},
+						"description": "Unprocessable Entity"
+					},
+					"429": {
+						"content": {
+							"application/problem+json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorModel"
+								}
+							}
+						},
+						"description": "Too Many Requests"
+					},
+					"500": {
+						"content": {
+							"application/problem+json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorModel"
+								}
+							}
+						},
+						"description": "Internal Server Error"
+					},
+					"503": {
+						"content": {
+							"application/problem+json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorModel"
+								}
+							}
+						},
+						"description": "Service Unavailable"
+					}
+				},
+				"summary": "Plan a period of drafts without creating anything",
+				"tags": ["Publication Plans"]
+			}
+		},
+		"/publication-plans/land": {
+			"post": {
+				"operationId": "land-publication-plan",
+				"parameters": [
+					{
+						"description": "Replay key scoped to the caller and Workspace",
+						"in": "header",
+						"name": "Idempotency-Key",
+						"schema": {
+							"description": "Replay key scoped to the caller and Workspace",
+							"maxLength": 200,
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/LandPublicationPlanInputBody"
+							}
+						}
+					},
+					"required": true
+				},
+				"responses": {
+					"200": {
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/LandPublicationPlanOutputBody"
+								}
+							}
+						},
+						"description": "OK"
+					},
+					"400": {
+						"content": {
+							"application/problem+json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorModel"
+								}
+							}
+						},
+						"description": "Bad Request"
+					},
+					"403": {
+						"content": {
+							"application/problem+json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorModel"
+								}
+							}
+						},
+						"description": "Forbidden"
+					},
+					"422": {
+						"content": {
+							"application/problem+json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorModel"
+								}
+							}
+						},
+						"description": "Unprocessable Entity"
+					},
+					"429": {
+						"content": {
+							"application/problem+json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorModel"
+								}
+							}
+						},
+						"description": "Too Many Requests"
+					},
+					"500": {
+						"content": {
+							"application/problem+json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorModel"
+								}
+							}
+						},
+						"description": "Internal Server Error"
+					},
+					"503": {
+						"content": {
+							"application/problem+json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorModel"
+								}
+							}
+						},
+						"description": "Service Unavailable"
+					}
+				},
+				"summary": "Create one draft per planned post",
+				"tags": ["Publication Plans"]
 			}
 		},
 		"/publications": {
