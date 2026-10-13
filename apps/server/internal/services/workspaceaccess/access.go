@@ -284,6 +284,36 @@ func RoleMeetsLevel(role string, level Level) bool {
 	return roleMeetsLevel(role, level)
 }
 
+// knownRoles is every role this package can resolve. RolesMeetingLevel derives
+// its answer from this list, so a role added to the model without being added
+// here would be invisible to that helper.
+var knownRoles = []string{
+	models.WorkspaceRoleAdmin,
+	models.WorkspaceRoleEditor,
+	models.WorkspaceRoleClient,
+	models.WorkspaceRoleViewer,
+}
+
+// RolesMeetingLevel returns the roles that satisfy a level, derived from the
+// same matrix that authorizes it. Callers that need to address everyone who may
+// perform an action — telling the people who can approve that a post is waiting
+// — use this instead of restating the rule, because a restated rule drifts: it
+// is written once, the matrix changes, and the audience silently stops
+// including the people the action is actually waiting for.
+//
+// The answer is derived by asking roleMeetsLevel, never by repeating it, so the
+// two can never disagree. It is a capability question only; it does not evaluate
+// membership, credential scope, or identity policy.
+func RolesMeetingLevel(level Level) []string {
+	roles := make([]string, 0, len(knownRoles))
+	for _, role := range knownRoles {
+		if roleMeetsLevel(role, level) {
+			roles = append(roles, role)
+		}
+	}
+	return roles
+}
+
 func firstNonEmpty(values ...string) string {
 	for _, value := range values {
 		if strings.TrimSpace(value) != "" {

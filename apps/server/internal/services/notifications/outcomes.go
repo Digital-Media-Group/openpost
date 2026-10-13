@@ -85,6 +85,64 @@ func NewAccountNeedsAttentionOutcome(facts AccountAttentionFacts) (Outcome, erro
 	})
 }
 
+// ApprovalRequestedFacts describe a draft that has parked and is waiting for a
+// decision. The run and its approval step identify the wait; the recipient is
+// resolved by the producer, which knows who may act on the workspace.
+type ApprovalRequestedFacts struct {
+	RecipientUserID string
+	WorkspaceID     string
+	RunID           string
+	StepID          string
+	PublicationID   string
+	WorkflowName    string
+}
+
+func NewApprovalRequestedOutcome(facts ApprovalRequestedFacts) (Outcome, error) {
+	payload := map[string]any{"run_id": facts.RunID, "step_id": facts.StepID}
+	// Publication and workflow name are descriptive only. An approval step is
+	// not required to carry a publication, and a run is not required to be
+	// named, so they are omitted rather than allowed to reject the outcome —
+	// which would fail the workflow transition that produced it.
+	putOptionalFact(payload, "publication_id", facts.PublicationID)
+	putOptionalFact(payload, "workflow_name", facts.WorkflowName)
+	return newOutcome(semanticOutcome{
+		recipientID: facts.RecipientUserID, workspaceID: facts.WorkspaceID,
+		topic:   TypeApprovalRequested,
+		eventID: facts.RunID + ":" + facts.StepID,
+		payload: payload,
+	})
+}
+
+// ApprovalExpiredFacts describe a wait that ran out with no decision. It reuses
+// the run's own identity so a wait can only ever report one expiry.
+type ApprovalExpiredFacts struct {
+	RecipientUserID string
+	WorkspaceID     string
+	RunID           string
+	PublicationID   string
+	WorkflowName    string
+}
+
+func NewApprovalExpiredOutcome(facts ApprovalExpiredFacts) (Outcome, error) {
+	payload := map[string]any{"run_id": facts.RunID}
+	putOptionalFact(payload, "publication_id", facts.PublicationID)
+	putOptionalFact(payload, "workflow_name", facts.WorkflowName)
+	return newOutcome(semanticOutcome{
+		recipientID: facts.RecipientUserID, workspaceID: facts.WorkspaceID,
+		topic: TypeApprovalExpired, eventID: facts.RunID,
+		payload: payload,
+	})
+}
+
+// putOptionalFact keeps an empty descriptive fact out of the payload entirely.
+// Semantic payloads reject empty strings, and a missing detail must never be
+// able to fail the transition that is reporting it.
+func putOptionalFact(payload map[string]any, key, value string) {
+	if trimmed := strings.TrimSpace(value); trimmed != "" {
+		payload[key] = trimmed
+	}
+}
+
 type EngagementReceivedFacts struct {
 	RecipientUserID string
 	WorkspaceID     string
@@ -301,6 +359,26 @@ func materializeAccountAttentionOutcome(value semanticOutcome) (createInput, err
 	}
 	input.Href = "/settings?tab=accounts"
 	input.Actions = []models.NotificationAction{{Label: "Reconnect account", Href: input.Href, Kind: "primary"}}
+	return input, nil
+}
+
+func materializeApprovalRequestedOutcome(value semanticOutcome) (createInput, error) {
+	input := baseOutcomeInput(value)
+	runID, _ := value.payload["run_id"].(string)
+	input.Href = "/workflows?run=" + url.QueryEscape(runID)
+	input.Title = "A post is waiting for approval"
+	input.Body = "OpenPost paused this workflow until someone approves or rejects the post."
+	input.Actions = []models.NotificationAction{{Label: "Review post", Href: input.Href, Kind: "primary"}}
+	return input, nil
+}
+
+func materializeApprovalExpiredOutcome(value semanticOutcome) (createInput, error) {
+	input := baseOutcomeInput(value)
+	runID, _ := value.payload["run_id"].(string)
+	input.Href = "/workflows?run=" + url.QueryEscape(runID)
+	input.Title = "An approval request expired"
+	input.Body = "Nobody approved this post in time, so OpenPost stopped the workflow."
+	input.Actions = []models.NotificationAction{{Label: "View workflow run", Href: input.Href, Kind: "primary"}}
 	return input, nil
 }
 

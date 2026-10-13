@@ -667,5 +667,6 @@ func registerWorkflowRoutes(api huma.API, deps RouteDeps, publicationHandler *ha
 		workflowService = workflows.NewService(deps.DB, nil, deps.TokenEncryptor)
 	}
 	workflowService.SetActions(handlers.NewWorkflowActions(publicationHandler, publicationBuildHandler, deps.AnalyticsService))
+	workflowService.SetNotificationService(deps.NotificationService)
 	handlers.NewWorkflowHandler(workflowService, deps.Authenticator).RegisterRoutes(api)
 }

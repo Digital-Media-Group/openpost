@@ -25,6 +25,8 @@ const (
 	TypePostPublished                = "post_published"
 	TypePublishFailed                = "publish_failed"
 	TypeAccountNeedsAttention        = "account_needs_attention"
+	TypeApprovalRequested            = "approval_requested"
+	TypeApprovalExpired              = "approval_expired"
 	TypeNewEngagement                = "new_engagement"
 	TypeNewMessage                   = "new_message"
 	TypeReplyFailed                  = "reply_failed"

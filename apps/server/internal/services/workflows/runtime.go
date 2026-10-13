@@ -182,19 +182,30 @@ func (s *Service) finishRunStep(ctx context.Context, record runRecord, results [
 		committed = true
 		current.Revision++
 		current.State = state
-		if state == StateQueued || state == StateWaiting {
-			runAt := time.Now().UTC()
-			if wakeAt != nil {
-				runAt = *wakeAt
-			}
-			return enqueueRun(ctx, tx, current, runAt)
-		}
-		return nil
+		return s.settleCommittedRun(ctx, tx, current, results, wakeAt)
 	})
 	if err == nil && committed {
 		s.captureFinishedRun(ctx, record, state, len(results))
 	}
 	return err
+}
+
+// settleCommittedRun does the work that follows a committed run update: a run
+// that parked for approval tells the people who can decide it, and a run that
+// still has steps queues its next attempt. Both run in the transaction that
+// wrote the state, so a notification cannot outlive a rolled-back change.
+func (s *Service) settleCommittedRun(ctx context.Context, db bun.IDB, current runRecord, results []StepResult, wakeAt *time.Time) error {
+	if current.State == StateApproval {
+		return s.recordApprovalRequested(ctx, db, current, results)
+	}
+	if current.State == StateQueued || current.State == StateWaiting {
+		runAt := time.Now().UTC()
+		if wakeAt != nil {
+			runAt = *wakeAt
+		}
+		return enqueueRun(ctx, db, current, runAt)
+	}
+	return nil
 }
 
 func number(value any) (float64, error) {

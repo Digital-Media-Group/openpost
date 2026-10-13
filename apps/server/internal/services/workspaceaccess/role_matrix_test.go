@@ -3,6 +3,7 @@ package workspaceaccess
 import (
 	"context"
 	"database/sql"
+	"slices"
 	"testing"
 
 	"github.com/openpost/backend/internal/models"
@@ -63,6 +64,37 @@ func TestRoleLevelMatrix(t *testing.T) {
 			require.Equal(t, tc.allowed, RoleMeetsLevel(tc.role, tc.level))
 		})
 	}
+}
+
+// TestRolesMeetingLevelIsTheInverseOfTheMatrix keeps the derived audience
+// honest: whoever is told they may decide an approval must be exactly who may
+// decide it. The two must never drift, because a caller that addresses the
+// approvers is relying on this answer to reach a real person.
+func TestRolesMeetingLevelIsTheInverseOfTheMatrix(t *testing.T) {
+	for _, role := range knownRoles {
+		for _, level := range []Level{LevelRead, LevelConnect, LevelApprove, LevelEdit, LevelAdminister} {
+			meets := RoleMeetsLevel(role, level)
+			listed := slices.Contains(RolesMeetingLevel(level), role)
+			require.Equal(t, meets, listed, "role %s at level %s", role, level)
+		}
+	}
+
+	// Approving is the case that motivated this: a client decides approvals
+	// without administering the workspace, so an audience of administrators
+	// alone would omit the person the wait is for.
+	require.Equal(t,
+		[]string{models.WorkspaceRoleAdmin, models.WorkspaceRoleClient},
+		RolesMeetingLevel(LevelApprove))
+	require.Equal(t,
+		[]string{models.WorkspaceRoleAdmin, models.WorkspaceRoleEditor, models.WorkspaceRoleClient, models.WorkspaceRoleViewer},
+		RolesMeetingLevel(LevelRead))
+	require.Equal(t,
+		[]string{models.WorkspaceRoleAdmin},
+		RolesMeetingLevel(LevelAdminister))
+
+	// Every known role is accounted for, so a role added to the model without
+	// being added to knownRoles cannot be silently invisible here.
+	require.Len(t, knownRoles, 4)
 }
 
 // TestUnknownLevelDegradesToRead documents the fallback in normalizeLevel

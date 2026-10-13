@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import { tick } from 'svelte';
 	import { createQuery } from '@tanstack/svelte-query';
 	import {
@@ -26,11 +27,17 @@
 	import { Button } from '$lib/components/ui/button';
 	import { ThemeIcon } from '$lib/themes/icons';
 	import { m } from '$lib/paraglide/messages';
+	// An approval notification links straight to the run that is waiting, so the
+	// page opens on that run instead of asking the reader to find it again. It is
+	// derived rather than read once: clicking a second notification while this
+	// page is already open is a same-route navigation, and a value captured at
+	// mount would leave the reader on the run they first opened.
+	const requestedRun = $derived(page.url.searchParams.get('run') ?? '');
 	let deleting = $state<Workflow | null>(null),
 		deleteOpen = $state(false);
 	const workspaceID = $derived(workspaceCtx.currentWorkspace?.id ?? '');
-	let tab = $state<'workflows' | 'runs' | 'templates'>('workflows'),
-		selectedRun = $state(''),
+	let tab = $state<'workflows' | 'runs' | 'templates'>(requestedRun ? 'runs' : 'workflows'),
+		selectedRun = $state(requestedRun),
 		repostHistoryOpen = $state(false),
 		busy = $state(false),
 		error = $state('');
@@ -50,6 +57,11 @@
 		...workflowRunSummariesQueryOptions(workflowQueryAPI, workspaceID),
 		enabled: Boolean(workspaceID && tab === 'runs' && !selectedRun)
 	}));
+	$effect(() => {
+		if (!requestedRun) return;
+		selectedRun = requestedRun;
+		tab = 'runs';
+	});
 	// Start the snapshot alongside accounts, before the inspector can mount.
 	const selectedRunQuery = createQuery(() =>
 		workflowRunQueryOptions(workflowQueryAPI, workspaceID, tab === 'runs' ? selectedRun : '')
