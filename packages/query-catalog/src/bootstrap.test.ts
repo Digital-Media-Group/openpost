@@ -53,6 +53,7 @@ function authenticatedBootstrap(): AppBootstrap {
       {
         avatar_url: "",
         can_edit: true,
+        can_connect: true,
         color: "#000000",
         created_at: "2026-09-01T00:00:00Z",
         id: "workspace-1",

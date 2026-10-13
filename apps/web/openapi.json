@@ -25629,12 +25629,12 @@
 					"avatar_url": {
 						"type": "string"
 					},
-					"can_edit": {
-						"description": "Whether the current user can change workspace content",
-						"type": "boolean"
-					},
 					"can_connect": {
 						"description": "Whether the current user can connect or reconnect social accounts",
+						"type": "boolean"
+					},
+					"can_edit": {
+						"description": "Whether the current user can change workspace content",
 						"type": "boolean"
 					},
 					"color": {

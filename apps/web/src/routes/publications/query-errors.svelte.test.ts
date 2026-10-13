@@ -19,6 +19,7 @@ it('shows a retryable notice when cached publications fail to refresh', async ()
 		avatar_url: '',
 		color: '',
 		can_edit: true,
+		can_connect: true,
 		role: 'admin',
 		created_at: '',
 		organization_id: '',

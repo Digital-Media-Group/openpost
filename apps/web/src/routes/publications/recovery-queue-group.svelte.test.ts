@@ -19,6 +19,7 @@ it('exposes the publication recovery queue as a named group', async () => {
 		avatar_url: '',
 		color: '',
 		can_edit: true,
+		can_connect: true,
 		role: 'admin',
 		created_at: '',
 		organization_id: '',

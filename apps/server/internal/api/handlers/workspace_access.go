@@ -53,13 +53,6 @@ func workspaceConnectAllowed(ctx context.Context, db bun.IDB, workspaceID, userI
 	return decision.Allowed, err
 }
 
-// workspaceApproveAllowed answers whether this actor may decide a parked
-// approval without being able to administer the workspace.
-func workspaceApproveAllowed(ctx context.Context, db bun.IDB, workspaceID, userID string) (bool, error) {
-	decision, err := workspaceDecision(ctx, db, workspaceID, userID, workspaceaccess.LevelApprove)
-	return decision.Allowed, err
-}
-
 func workspaceRole(ctx context.Context, db bun.IDB, workspaceID, userID string) (string, bool, error) {
 	decision, err := workspaceDecision(ctx, db, workspaceID, userID, workspaceaccess.LevelRead)
 	if err != nil || !decision.Allowed {

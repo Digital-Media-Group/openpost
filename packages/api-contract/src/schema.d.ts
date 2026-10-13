@@ -16849,10 +16849,10 @@ export interface components {
         };
         WorkspaceResponse: {
             avatar_url: string;
-            /** @description Whether the current user can change workspace content */
-            can_edit: boolean;
             /** @description Whether the current user can connect or reconnect social accounts */
             can_connect: boolean;
+            /** @description Whether the current user can change workspace content */
+            can_edit: boolean;
             color: string;
             created_at: string;
             id: string;
