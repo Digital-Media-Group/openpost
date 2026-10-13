@@ -329,7 +329,11 @@
 
 			<div class="space-y-4">
 				{#if !plan}
-					<EmptyState title={m.planner_empty_title()} description={m.planner_empty_description()} />
+					<EmptyState
+						themeIconRole="idea"
+						title={m.planner_empty_title()}
+						description={m.planner_empty_description()}
+					/>
 				{:else}
 					<div class="flex items-center justify-between gap-4">
 						<p class="text-sm text-muted-foreground">
