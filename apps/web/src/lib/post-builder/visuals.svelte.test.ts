@@ -34,6 +34,7 @@ it('saves the displayed meme PNG bytes with its editable recipe and export assoc
 		avatar_url: '',
 		color: '#f97316',
 		can_edit: true,
+		can_connect: true,
 		created_at: '2026-10-12T00:00:00Z',
 		organization_id: '',
 		organization_name: '',
