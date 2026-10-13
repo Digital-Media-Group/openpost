@@ -2627,7 +2627,7 @@
 						"type": "string"
 					},
 					"app_password": {
-						"description": "Bluesky app password (Settings \u003e App Passwords)",
+						"description": "Bluesky app password (Settings > App Passwords)",
 						"type": "string"
 					},
 					"handle": {

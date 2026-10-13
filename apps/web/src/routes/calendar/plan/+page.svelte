@@ -264,7 +264,7 @@
 						maxlength={2000}
 						placeholder={m.planner_brief_placeholder()}
 					/>
-					<p class="text-muted-foreground text-sm">{m.planner_brief_hint()}</p>
+					<p class="text-sm text-muted-foreground">{m.planner_brief_hint()}</p>
 				</div>
 
 				<div class="grid gap-4 sm:grid-cols-2">
@@ -298,7 +298,7 @@
 				<div class="space-y-2">
 					<Label>{m.planner_destinations_label()}</Label>
 					{#if accounts.length === 0 && !accountsLoading}
-						<p class="text-muted-foreground text-sm">{m.planner_no_accounts()}</p>
+						<p class="text-sm text-muted-foreground">{m.planner_no_accounts()}</p>
 					{:else}
 						<div class="flex flex-wrap gap-2">
 							{#each accounts as account (account.id)}
@@ -321,7 +321,7 @@
 				</div>
 
 				{#if slots >= 1 && slots <= days && startDate}
-					<p class="text-muted-foreground text-sm">
+					<p class="text-sm text-muted-foreground">
 						{m.planner_preview_summary({ count: slots, days, hour })}
 					</p>
 				{/if}
@@ -329,13 +329,10 @@
 
 			<div class="space-y-4">
 				{#if !plan}
-					<EmptyState
-						title={m.planner_empty_title()}
-						description={m.planner_empty_description()}
-					/>
+					<EmptyState title={m.planner_empty_title()} description={m.planner_empty_description()} />
 				{:else}
 					<div class="flex items-center justify-between gap-4">
-						<p class="text-muted-foreground text-sm">
+						<p class="text-sm text-muted-foreground">
 							{m.planner_slot_count({ count: plan.length })}
 						</p>
 						<Button onclick={landPlan} disabled={landing} aria-busy={landing}>
@@ -348,12 +345,12 @@
 							<li class="rounded-lg border p-4">
 								<div class="flex items-baseline justify-between gap-3">
 									<span class="font-medium">{slot.topic}</span>
-									<span class="text-muted-foreground shrink-0 text-xs">
+									<span class="shrink-0 text-xs text-muted-foreground">
 										{formatSlotDate(slot.scheduled_at)}
 									</span>
 								</div>
 								{#if slot.angle}
-									<p class="text-muted-foreground mt-1 text-sm">{slot.angle}</p>
+									<p class="mt-1 text-sm text-muted-foreground">{slot.angle}</p>
 								{/if}
 								{#if slot.text}
 									<p class="mt-2 text-sm whitespace-pre-wrap">{slot.text}</p>
@@ -363,7 +360,7 @@
 					</ul>
 
 					{#if planModel}
-						<p class="text-muted-foreground text-xs">{m.planner_model({ model: planModel })}</p>
+						<p class="text-xs text-muted-foreground">{m.planner_model({ model: planModel })}</p>
 					{/if}
 				{/if}
 			</div>

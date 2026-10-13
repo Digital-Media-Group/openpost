@@ -61,7 +61,7 @@ func planUserPrompt(request Request, schedule []time.Time) (string, error) {
 	builder.WriteString("Brief:\n")
 	builder.WriteString(request.Brief)
 	builder.WriteString("\n\nSchedule (")
-	builder.WriteString(fmt.Sprintf("%d posts", len(schedule)))
+	fmt.Fprintf(&builder, "%d posts", len(schedule))
 	builder.WriteString("):\n")
 	builder.Write(encodedSlots)
 	builder.WriteString("\n\nReturn one post for each position, in order.")
