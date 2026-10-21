@@ -64,9 +64,7 @@ describe('notification topic presentation', () => {
 			email_frequencies: ['off', 'immediate', 'daily'],
 			default_preference: { in_app: true, email_frequency: 'off' }
 		});
-		expect(
-			notificationTopicGroups([definition('workflow_approval')])
-		).toEqual([
+		expect(notificationTopicGroups([definition('workflow_approval')])).toEqual([
 			{
 				id: 'publishing',
 				label: 'Publishing',
