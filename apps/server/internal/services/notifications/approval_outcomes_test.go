@@ -8,125 +8,313 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestApprovalOutcomesRequireTheirIdentifyingFacts(t *testing.T) {
-	_, err := NewApprovalRequestedOutcome(ApprovalRequestedFacts{
-		RecipientUserID: "", WorkspaceID: "workspace-1", RunID: "run-1", StepID: "step-1",
-	})
-	require.ErrorIs(t, err, ErrInvalidOutcome)
-
-	_, err = NewApprovalRequestedOutcome(ApprovalRequestedFacts{
-		RecipientUserID: "user-1", WorkspaceID: "workspace-1", RunID: "", StepID: "step-1",
-	})
-	require.ErrorIs(t, err, ErrInvalidOutcome)
-
-	_, err = NewApprovalExpiredOutcome(ApprovalExpiredFacts{
-		RecipientUserID: "user-1", WorkspaceID: "workspace-1", RunID: "",
-	})
-	require.ErrorIs(t, err, ErrInvalidOutcome)
-}
-
-// The two topics are deliberately distinct: a wait that starts and a wait that
-// dies are different news, and only the second one also tells the author.
-func TestApprovalOutcomesUseDistinctTopicsAndIdentities(t *testing.T) {
-	requested, err := NewApprovalRequestedOutcome(ApprovalRequestedFacts{
-		RecipientUserID: "user-1", WorkspaceID: "workspace-1",
-		RunID: "run-1", StepID: "step-1", PublicationID: "publication-1", WorkflowName: "Weekly",
-	})
-	require.NoError(t, err)
-	expired, err := NewApprovalExpiredOutcome(ApprovalExpiredFacts{
-		RecipientUserID: "user-1", WorkspaceID: "workspace-1",
-		RunID: "run-1", PublicationID: "publication-1", WorkflowName: "Weekly",
-	})
-	require.NoError(t, err)
-
-	requestedValue := requested.notificationOutcome()
-	expiredValue := expired.notificationOutcome()
-	require.Equal(t, TypeApprovalRequested, requestedValue.topic)
-	require.Equal(t, TypeApprovalExpired, expiredValue.topic)
-
-	// One run can park more than once, so the request is identified by its step
-	// as well. The expiry is per run, so it can only ever be reported once.
-	require.Equal(t, "run-1:step-1", requestedValue.eventID)
-	require.Equal(t, "run-1", expiredValue.eventID)
-
-	input, err := materializeApprovalRequestedOutcome(requestedValue)
-	require.NoError(t, err)
-	require.Equal(t, "/workflows?run=run-1", input.Href)
-	require.Equal(t, "approval_requested:run-1:step-1", input.DedupKey)
-	require.NotEmpty(t, input.Title)
-	require.NotEmpty(t, input.Actions)
-
-	expiredInput, err := materializeApprovalExpiredOutcome(expiredValue)
-	require.NoError(t, err)
-	require.Equal(t, "/workflows?run=run-1", expiredInput.Href)
-	require.Equal(t, "approval_expired:run-1", expiredInput.DedupKey)
-	require.NotEqual(t, input.Title, expiredInput.Title)
-}
-
-// Both topics join the publishing group, so they inherit the existing
-// preference surface instead of inventing a new one.
-func TestApprovalTopicsJoinThePublishingGroup(t *testing.T) {
-	for _, id := range []string{TypeApprovalRequested, TypeApprovalExpired} {
-		policy, ok := topicPolicyFor(id)
-		require.True(t, ok, id)
-		require.Equal(t, "publishing", policy.definition.Group)
-		require.False(t, policy.definition.Transactional)
-		require.True(t, policy.definition.EmailMutable)
-		require.Contains(t, policy.definition.EmailFrequencies, EmailFrequencyImmediate)
-		require.Equal(t, "notifications.event."+id, policy.definition.PresentationKey)
+func TestWorkflowApprovalOutcomesRejectIncompleteFacts(t *testing.T) {
+	valid := WorkflowApprovalFacts{
+		RecipientUserID: "user-1", WorkspaceID: "workspace-1", RunID: "run-1",
+		StepID: "step-1", State: ApprovalStateWaiting, Audience: ApprovalAudienceApprover,
 	}
+
+	_, err := NewWorkflowApprovalOutcome(WorkflowApprovalFacts{
+		WorkspaceID: "workspace-1", RunID: "run-1", StepID: "step-1",
+		State: ApprovalStateWaiting, Audience: ApprovalAudienceApprover,
+	})
+	require.ErrorIs(t, err, ErrInvalidOutcome, "a recipient is required")
+
+	_, err = NewWorkflowApprovalOutcome(WorkflowApprovalFacts{
+		RecipientUserID: "user-1", WorkspaceID: "workspace-1", RunID: "run-1",
+		State: ApprovalStateWaiting, Audience: ApprovalAudienceApprover,
+	})
+	require.ErrorIs(t, err, ErrInvalidOutcome, "a wait is identified by its step")
+
+	// An expiry is per run, so it needs no step.
+	expired := valid
+	expired.State = ApprovalStateExpired
+	expired.StepID = ""
+	_, err = NewWorkflowApprovalOutcome(expired)
+	require.NoError(t, err)
+
+	unknownState := valid
+	unknownState.State = "pending"
+	_, err = NewWorkflowApprovalOutcome(unknownState)
+	require.ErrorIs(t, err, ErrInvalidOutcome)
+
+	unknownAudience := valid
+	unknownAudience.Audience = "everyone"
+	_, err = NewWorkflowApprovalOutcome(unknownAudience)
+	require.ErrorIs(t, err, ErrInvalidOutcome)
+}
+
+// One topic carries the whole life of a wait, and each state gets its own
+// identity so the three can coexist and be resolved independently.
+func TestWorkflowApprovalStatesShareATopicAndKeepDistinctIdentities(t *testing.T) {
+	base := WorkflowApprovalFacts{
+		RecipientUserID: "user-1", WorkspaceID: "workspace-1", RunID: "run-1",
+		StepID: "step-1", Audience: ApprovalAudienceApprover,
+	}
+
+	waiting := base
+	waiting.State = ApprovalStateWaiting
+	reminder := base
+	reminder.State = ApprovalStateReminder
+	reminder.DaysLeft = 3
+	expired := base
+	expired.State = ApprovalStateExpired
+	expired.StepID = ""
+
+	for _, facts := range []WorkflowApprovalFacts{waiting, reminder, expired} {
+		outcome, err := NewWorkflowApprovalOutcome(facts)
+		require.NoError(t, err)
+		require.Equal(t, TypeWorkflowApproval, outcome.notificationOutcome().topic)
+	}
+
+	waitingValue := mustOutcome(t, waiting).notificationOutcome()
+	reminderValue := mustOutcome(t, reminder).notificationOutcome()
+	expiredValue := mustOutcome(t, expired).notificationOutcome()
+
+	require.Equal(t, "run-1:step-1:waiting", waitingValue.eventID)
+	require.Equal(t, "run-1:step-1:reminder", reminderValue.eventID)
+	require.Equal(t, "run-1:expired", expiredValue.eventID)
+
+	// The dedup key the producer will later resolve must match the stored one.
+	require.Equal(t, "workflow_approval:run-1:step-1:waiting", WorkflowApprovalDedupKey("run-1", "step-1", ApprovalStateWaiting))
+	require.Equal(t, "workflow_approval:run-1:expired", WorkflowApprovalDedupKey("run-1", "", ApprovalStateExpired))
+}
+
+// A workflow may contain two approval steps, so one run can park twice. Keying
+// the wait on the run alone would silently swallow the second notice.
+func TestWorkflowApprovalKeepsASecondWaitOnTheSameRunDistinct(t *testing.T) {
+	first, err := NewWorkflowApprovalOutcome(WorkflowApprovalFacts{
+		RecipientUserID: "user-1", WorkspaceID: "workspace-1", RunID: "run-1",
+		StepID: "step-1", State: ApprovalStateWaiting, Audience: ApprovalAudienceApprover,
+	})
+	require.NoError(t, err)
+	second, err := NewWorkflowApprovalOutcome(WorkflowApprovalFacts{
+		RecipientUserID: "user-1", WorkspaceID: "workspace-1", RunID: "run-1",
+		StepID: "step-2", State: ApprovalStateWaiting, Audience: ApprovalAudienceApprover,
+	})
+	require.NoError(t, err)
+
+	require.NotEqual(t, first.notificationOutcome().eventID, second.notificationOutcome().eventID)
+	require.NotEqual(t, WorkflowApprovalDedupKey("run-1", "step-1", ApprovalStateWaiting),
+		WorkflowApprovalDedupKey("run-1", "step-2", ApprovalStateWaiting))
+}
+
+// Each state says something different, and the expiry speaks differently to the
+// person who could have decided it and to the person whose post died.
+func TestWorkflowApprovalCopyFollowsStateAndAudience(t *testing.T) {
+	base := WorkflowApprovalFacts{
+		RecipientUserID: "user-1", WorkspaceID: "workspace-1", RunID: "run-1",
+		StepID: "step-1", PublicationID: "publication-1", WorkflowName: "Weekly review",
+	}
+
+	waiting := base
+	waiting.State = ApprovalStateWaiting
+	waiting.Audience = ApprovalAudienceApprover
+	waitingInput := materialize(t, waiting)
+
+	expiredApprover := base
+	expiredApprover.State = ApprovalStateExpired
+	expiredApprover.Audience = ApprovalAudienceApprover
+	expiredApproverInput := materialize(t, expiredApprover)
+
+	expiredAuthor := expiredApprover
+	expiredAuthor.Audience = ApprovalAudienceAuthor
+	expiredAuthorInput := materialize(t, expiredAuthor)
+
+	require.NotEqual(t, waitingInput.Title, expiredApproverInput.Title)
+	require.NotEqual(t, expiredApproverInput.Title, expiredAuthorInput.Title)
+	require.NotEqual(t, expiredApproverInput.Body, expiredAuthorInput.Body)
+
+	// The approver hears about the run; the author hears about their post.
+	require.Contains(t, expiredApproverInput.Href, "/workflows?run=run-1")
+	require.Contains(t, expiredAuthorInput.Href, "/publications?publication=publication-1")
+}
+
+// The link has to carry the workspace: the run inspector resolves a run against
+// the workspace the reader is currently in, so an approver arriving from another
+// workspace would otherwise land on an empty inspector.
+func TestWorkflowApprovalLinksCarryTheWorkspace(t *testing.T) {
+	input := materialize(t, WorkflowApprovalFacts{
+		RecipientUserID: "user-1", WorkspaceID: "workspace-1", RunID: "run-1",
+		StepID: "step-1", State: ApprovalStateWaiting, Audience: ApprovalAudienceApprover,
+	})
+	require.Contains(t, input.Href, "workspace_id=workspace-1")
+}
+
+// A workspace where nobody holds the approving level cannot end in an approval,
+// so telling the author to "review" the post would hand them a button that
+// fails. They get copy that names the real problem.
+func TestWorkflowApprovalTellsTheAuthorWhenNobodyCanApprove(t *testing.T) {
+	noApprover := materialize(t, WorkflowApprovalFacts{
+		RecipientUserID: "user-1", WorkspaceID: "workspace-1", RunID: "run-1",
+		StepID: "step-1", State: ApprovalStateWaiting, Audience: ApprovalAudienceNoApprover,
+		PublicationID: "publication-1",
+	})
+	approver := materialize(t, WorkflowApprovalFacts{
+		RecipientUserID: "user-1", WorkspaceID: "workspace-1", RunID: "run-1",
+		StepID: "step-1", State: ApprovalStateWaiting, Audience: ApprovalAudienceApprover,
+		PublicationID: "publication-1",
+	})
+	require.NotEqual(t, noApprover.Title, approver.Title)
+	require.NotEqual(t, noApprover.Body, approver.Body)
+	require.NotEqual(t, noApprover.Href, approver.Href)
+}
+
+// The reminder is the only notice that arrives while the reader can still act,
+// so its wording has to reflect the time that is actually left.
+func TestWorkflowApprovalReminderReportsTheTimeLeft(t *testing.T) {
+	base := WorkflowApprovalFacts{
+		RecipientUserID: "user-1", WorkspaceID: "workspace-1", RunID: "run-1",
+		StepID: "step-1", State: ApprovalStateReminder, Audience: ApprovalAudienceApprover,
+	}
+
+	oneDay := base
+	oneDay.DaysLeft = 1
+	threeDays := base
+	threeDays.DaysLeft = 3
+	lastDay := base
+	lastDay.DaysLeft = 0
+
+	oneDayInput := materialize(t, oneDay)
+	threeDaysInput := materialize(t, threeDays)
+	lastDayInput := materialize(t, lastDay)
+
+	require.Contains(t, oneDayInput.Body, "One day")
+	require.Contains(t, threeDaysInput.Body, "3 days")
+	require.NotEqual(t, oneDayInput.Body, threeDaysInput.Body)
+	require.NotEqual(t, lastDayInput.Body, oneDayInput.Body)
 }
 
 // A missing descriptive detail must never fail the transition reporting it: an
 // unnamed workflow or an approval step without a publication is still a real
 // wait, and dropping the notification would recreate the silent queue.
-func TestApprovalOutcomesTolerateMissingDescriptiveFacts(t *testing.T) {
-	requested, err := NewApprovalRequestedOutcome(ApprovalRequestedFacts{
-		RecipientUserID: "user-1", WorkspaceID: "workspace-1", RunID: "run-1", StepID: "step-1",
-	})
-	require.NoError(t, err)
-	requestedValue := requested.notificationOutcome()
-	require.NotContains(t, requestedValue.payload, "publication_id")
-	require.NotContains(t, requestedValue.payload, "workflow_name")
-	_, err = materializeApprovalRequestedOutcome(requestedValue)
-	require.NoError(t, err)
-
-	expired, err := NewApprovalExpiredOutcome(ApprovalExpiredFacts{
+func TestWorkflowApprovalToleratesMissingDescriptiveFacts(t *testing.T) {
+	outcome := mustOutcome(t, WorkflowApprovalFacts{
 		RecipientUserID: "user-1", WorkspaceID: "workspace-1", RunID: "run-1",
+		StepID: "step-1", State: ApprovalStateWaiting, Audience: ApprovalAudienceApprover,
 	})
+	value := outcome.notificationOutcome()
+	require.NotContains(t, value.payload, "publication_id")
+	require.NotContains(t, value.payload, "workflow_name")
+	_, err := materializeWorkflowApproval(value)
 	require.NoError(t, err)
-	expiredValue := expired.notificationOutcome()
-	require.NotContains(t, expiredValue.payload, "publication_id")
-	require.NotContains(t, expiredValue.payload, "workflow_name")
-	_, err = materializeApprovalExpiredOutcome(expiredValue)
-	require.NoError(t, err)
+}
+
+// One topic joins the publishing group, so the whole mechanism inherits the
+// existing preference surface instead of adding a new one.
+func TestWorkflowApprovalJoinsThePublishingGroup(t *testing.T) {
+	policy, ok := topicPolicyFor(TypeWorkflowApproval)
+	require.True(t, ok)
+	require.Equal(t, "publishing", policy.definition.Group)
+	require.False(t, policy.definition.Transactional)
+	require.True(t, policy.definition.EmailMutable)
+	require.Contains(t, policy.definition.EmailFrequencies, EmailFrequencyImmediate)
+	require.Contains(t, policy.definition.EmailFrequencies, EmailFrequencyDaily)
+	require.Equal(t, "notifications.event."+TypeWorkflowApproval, policy.definition.PresentationKey)
+
+	// The retired per-transition topics must be gone, or the preferences page
+	// would offer two switches for one mechanism.
+	for _, retired := range []string{"approval_requested", "approval_expired"} {
+		_, exists := topicPolicyFor(retired)
+		require.False(t, exists, retired)
+	}
 }
 
 // A parked draft must reach the inbox even at default preferences: the whole
 // point is that the queue stops being invisible.
-func TestApprovalRequestedReachesTheInboxByDefault(t *testing.T) {
+func TestWorkflowApprovalReachesTheInboxByDefault(t *testing.T) {
 	ctx := context.Background()
 	db := notificationsTestDB(t)
 	service := NewService(db)
 
-	outcome, err := NewApprovalRequestedOutcome(ApprovalRequestedFacts{
-		RecipientUserID: "user-1", WorkspaceID: "workspace-1",
-		RunID: "run-1", StepID: "step-1", PublicationID: "publication-1",
-		WorkflowName: "Weekly review",
+	outcome := mustOutcome(t, WorkflowApprovalFacts{
+		RecipientUserID: "user-1", WorkspaceID: "workspace-1", RunID: "run-1",
+		StepID: "step-1", State: ApprovalStateWaiting, Audience: ApprovalAudienceApprover,
+		PublicationID: "publication-1", WorkflowName: "Weekly review",
 	})
-	require.NoError(t, err)
 	require.NoError(t, service.Record(ctx, outcome))
 
 	var stored models.UserNotification
 	require.NoError(t, db.NewSelect().Model(&stored).
 		Where("user_id = ? AND workspace_id = ?", "user-1", "workspace-1").Scan(ctx))
-	require.Equal(t, TypeApprovalRequested, stored.Type)
-	require.Equal(t, "/workflows?run=run-1", stored.Href)
+	require.Equal(t, TypeWorkflowApproval, stored.Type)
+	require.Contains(t, stored.Href, "/workflows?run=run-1")
 
 	// Recording the same park twice must not duplicate the notification.
 	require.NoError(t, service.Record(ctx, outcome))
 	count, err := db.NewSelect().Model((*models.UserNotification)(nil)).
-		Where("user_id = ? AND dedup_key = ?", "user-1", "approval_requested:run-1:step-1").Count(ctx)
+		Where("user_id = ? AND dedup_key = ?", "user-1", WorkflowApprovalDedupKey("run-1", "step-1", ApprovalStateWaiting)).
+		Count(ctx)
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
+}
+
+// Resolution is what stops a decided wait from leaving a dead button behind, so
+// it must rewrite the text as well as clear the unread state.
+func TestResolveByDedupKeysRewritesAndMarksRead(t *testing.T) {
+	ctx := context.Background()
+	db := notificationsTestDB(t)
+	service := NewService(db)
+
+	outcome := mustOutcome(t, WorkflowApprovalFacts{
+		RecipientUserID: "user-1", WorkspaceID: "workspace-1", RunID: "run-1",
+		StepID: "step-1", State: ApprovalStateWaiting, Audience: ApprovalAudienceApprover,
+	})
+	require.NoError(t, service.Record(ctx, outcome))
+
+	require.NoError(t, service.ResolveByDedupKeys(ctx, db, []string{"user-1"},
+		[]string{WorkflowApprovalDedupKey("run-1", "step-1", ApprovalStateWaiting)},
+		"Approval already decided", "Someone else decided this approval."))
+
+	var stored models.UserNotification
+	require.NoError(t, db.NewSelect().Model(&stored).
+		Where("user_id = ? AND workspace_id = ?", "user-1", "workspace-1").Scan(ctx))
+	require.False(t, stored.ReadAt.IsZero())
+	require.Equal(t, "Approval already decided", stored.Title)
+	require.Equal(t, "Someone else decided this approval.", stored.Body)
+}
+
+// Resolution must be scoped to the named users. The unique index is
+// (user_id, dedup_key), so a dedup_key-only update would rewrite other people's
+// rows and skip the index while doing it.
+func TestResolveByDedupKeysLeavesOtherUsersAlone(t *testing.T) {
+	ctx := context.Background()
+	db := notificationsTestDB(t)
+	service := NewService(db)
+
+	key := WorkflowApprovalDedupKey("run-1", "step-1", ApprovalStateWaiting)
+	for _, userID := range []string{"user-1", "user-2"} {
+		outcome := mustOutcome(t, WorkflowApprovalFacts{
+			RecipientUserID: userID, WorkspaceID: "workspace-1", RunID: "run-1",
+			StepID: "step-1", State: ApprovalStateWaiting, Audience: ApprovalAudienceApprover,
+		})
+		require.NoError(t, service.Record(ctx, outcome))
+	}
+
+	require.NoError(t, service.ResolveByDedupKeys(ctx, db, []string{"user-1"}, []string{key},
+		"Approval already decided", "Someone else decided this approval."))
+
+	var resolved models.UserNotification
+	require.NoError(t, db.NewSelect().Model(&resolved).
+		Where("user_id = ? AND dedup_key = ?", "user-1", key).Scan(ctx))
+	require.False(t, resolved.ReadAt.IsZero())
+
+	var untouched models.UserNotification
+	require.NoError(t, db.NewSelect().Model(&untouched).
+		Where("user_id = ? AND dedup_key = ?", "user-2", key).Scan(ctx))
+	require.True(t, untouched.ReadAt.IsZero(), "another user's notice must stay unread")
+}
+
+func mustOutcome(t *testing.T, facts WorkflowApprovalFacts) Outcome {
+	t.Helper()
+	outcome, err := NewWorkflowApprovalOutcome(facts)
+	require.NoError(t, err)
+	return outcome
+}
+
+func materialize(t *testing.T, facts WorkflowApprovalFacts) createInput {
+	t.Helper()
+	input, err := materializeWorkflowApproval(mustOutcome(t, facts).notificationOutcome())
+	require.NoError(t, err)
+	return input
 }

@@ -25,8 +25,6 @@ const (
 	TypePostPublished                = "post_published"
 	TypePublishFailed                = "publish_failed"
 	TypeAccountNeedsAttention        = "account_needs_attention"
-	TypeApprovalRequested            = "approval_requested"
-	TypeApprovalExpired              = "approval_expired"
 	TypeNewEngagement                = "new_engagement"
 	TypeNewMessage                   = "new_message"
 	TypeReplyFailed                  = "reply_failed"
@@ -1127,6 +1125,27 @@ func parseCursor(cursor string) (time.Time, string, error) {
 		return time.Time{}, "", ErrInvalidCursor
 	}
 	return createdAt, parts[1], nil
+}
+
+// ResolveByDedupKeys marks notifications read and replaces their text, so a row
+// that announced a wait stops claiming the wait is still open. Marking it read
+// alone would clear the unread badge but leave the history saying something
+// untrue, which is why the body is rewritten in the same statement.
+//
+// The user_id predicate is not optional: the unique index is
+// (user_id, dedup_key), so filtering by dedup_key alone would scan every row
+// that ever carried the key instead of walking the index.
+func (s *Service) ResolveByDedupKeys(ctx context.Context, db bun.IDB, userIDs, dedupKeys []string, title, body string) error {
+	if len(userIDs) == 0 || len(dedupKeys) == 0 {
+		return nil
+	}
+	_, err := db.NewUpdate().Model((*models.UserNotification)(nil)).
+		Set("read_at = ?, title = ?, body = ?", s.now(), strings.TrimSpace(title), strings.TrimSpace(body)).
+		Where("user_id IN (?)", bun.List(userIDs)).
+		Where("dedup_key IN (?)", bun.List(dedupKeys)).
+		Where("read_at IS NULL").
+		Exec(ctx)
+	return err
 }
 
 func (s *Service) MarkRead(ctx context.Context, userID, workspaceID string, ids []string, all bool) error {

@@ -3,6 +3,8 @@ package workflows
 import (
 	"context"
 	"encoding/json"
+	"log"
+	"math"
 	"strings"
 	"time"
 
@@ -17,10 +19,26 @@ import (
 const approvalExpiredMessage = "The approval expired after 30 days."
 
 // Approval transitions are the one place a workflow asks someone other than its
-// author to act, and they used to be silent. These helpers turn the two
-// transitions into notifications recorded in the same transaction that commits
-// the run state, so a notification can never describe a state that did not
-// happen and a parked run can never be invisible.
+// author to act, and they used to be silent. These helpers turn the life of a
+// wait — parked, still parked, expired — into notifications.
+//
+// They are deliberately best-effort. The run's state is the truth; a
+// notification is a courtesy. Emitting them inside the transaction that writes
+// the state meant a failed notification write rolled the park back, and the
+// failure modes here are permanent rather than transient: a recipient whose
+// stored preferences will not decode, or LockWorkspace finding no organization
+// row. That left the run behind its lease, re-enqueued by the sweep, replaying
+// the step and failing again — a silent loop where the run never parked, which
+// is the exact invisible queue this work exists to remove. So they run after
+// the commit and report through the log instead of the return value.
+
+// approvalRecipient is one person to tell, and how the message should read to
+// them. The audience travels with the recipient because the same transition is
+// good news for nobody and different news for each of them.
+type approvalRecipient struct {
+	userID   string
+	audience string
+}
 
 // approvalRecipients resolves who may decide a parked approval: the workspace's
 // active members whose role satisfies LevelApprove, excluding excludeUserID.
@@ -54,6 +72,24 @@ func (s *Service) approvalRecipients(ctx context.Context, db bun.IDB, workspaceI
 		recipients = append(recipients, userID)
 	}
 	return recipients, nil
+}
+
+// authorCanApprove reports whether the author holds the level needed to decide
+// their own approval. It decides which copy a fallback recipient gets: telling
+// an editor to "review the post" would hand them a button that fails.
+func (s *Service) authorCanApprove(ctx context.Context, db bun.IDB, workspaceID, userID string) (bool, error) {
+	if userID == "" {
+		return false, nil
+	}
+	roles := workspaceaccess.RolesMeetingLevel(workspaceaccess.LevelApprove)
+	if len(roles) == 0 {
+		return false, nil
+	}
+	exists, err := db.NewSelect().Model((*models.WorkspaceMember)(nil)).
+		Where("workspace_id = ? AND user_id = ? AND status = ?", workspaceID, userID, models.WorkspaceMemberStatusActive).
+		Where("role IN (?)", bun.List(roles)).
+		Exists(ctx)
+	return exists, err
 }
 
 // runAuthor reports who started the run, as recorded in its stored authority.
@@ -90,60 +126,192 @@ func approvalPublicationID(result StepResult) string {
 	return strings.TrimSpace(publicationID)
 }
 
-// recordApprovalRequested notifies the approvers that a run has parked. The
-// author is skipped: they just took the action that parked it, and the wait is
-// for somebody else. If that leaves nobody — a workspace whose only approver is
-// the author — the author is told after all, because a silent queue is the
-// exact problem this exists to remove.
-func (s *Service) recordApprovalRequested(ctx context.Context, db bun.IDB, record runRecord, results []StepResult) error {
+// waitingAudience answers who hears that a run has parked. The author is
+// skipped: they just took the action that parked it, and the wait is for
+// somebody else. If that leaves nobody — a workspace whose only approver is the
+// author — the author is told after all, because a silent queue is the exact
+// problem this exists to remove. Their copy depends on whether they can
+// actually decide it.
+func (s *Service) waitingAudience(ctx context.Context, db bun.IDB, record runRecord, author string) ([]approvalRecipient, error) {
+	approvers, err := s.approvalRecipients(ctx, db, record.WorkspaceID, author)
+	if err != nil {
+		return nil, err
+	}
+	if len(approvers) > 0 {
+		recipients := make([]approvalRecipient, 0, len(approvers))
+		for _, userID := range approvers {
+			recipients = append(recipients, approvalRecipient{userID: userID, audience: notifications.ApprovalAudienceApprover})
+		}
+		return recipients, nil
+	}
+	if author == "" {
+		return nil, nil
+	}
+	canApprove, err := s.authorCanApprove(ctx, db, record.WorkspaceID, author)
+	if err != nil {
+		return nil, err
+	}
+	audience := notifications.ApprovalAudienceNoApprover
+	if canApprove {
+		audience = notifications.ApprovalAudienceApprover
+	}
+	return []approvalRecipient{{userID: author, audience: audience}}, nil
+}
+
+// expiredAudience answers who hears that a wait ran out. Unlike the request,
+// the author is always included: their post died. An author who is also an
+// approver gets the author copy rather than the approver copy, because "your
+// post was not published" is the actionable half and the dedup key is per run.
+func (s *Service) expiredAudience(ctx context.Context, db bun.IDB, record runRecord, author string) ([]approvalRecipient, error) {
+	approvers, err := s.approvalRecipients(ctx, db, record.WorkspaceID, "")
+	if err != nil {
+		return nil, err
+	}
+	recipients := make([]approvalRecipient, 0, len(approvers)+1)
+	for _, userID := range approvers {
+		if userID == author {
+			continue
+		}
+		recipients = append(recipients, approvalRecipient{userID: userID, audience: notifications.ApprovalAudienceApprover})
+	}
+	if author != "" {
+		recipients = append(recipients, approvalRecipient{userID: author, audience: notifications.ApprovalAudienceAuthor})
+	}
+	return recipients, nil
+}
+
+// approvalDaysLeft is how much of the wait remains, measured from the run's own
+// creation time — the same clock expireApprovals uses. It is computed here, at
+// emission, so the wording can never drift from the deadline that applies.
+func approvalDaysLeft(record runRecord, now time.Time) int {
+	remaining := record.CreatedAt.Add(MaxRunAge).Sub(now)
+	if remaining <= 0 {
+		return 0
+	}
+	// Round up: with 47h left the reader has two days to act, not one. Flooring
+	// would understate the deadline on every reminder.
+	return int(math.Ceil(remaining.Hours() / 24))
+}
+
+// recordApprovalState writes one notification per recipient. A failure for one
+// person does not stop the others: they are independent courtesies, and the
+// caller has already committed the state they describe.
+func (s *Service) recordApprovalState(ctx context.Context, db bun.IDB, record runRecord, step StepResult, state, audienceOf string, recipients []approvalRecipient, now time.Time) {
+	for _, recipient := range recipients {
+		audience := audienceOf
+		if audience == "" {
+			audience = recipient.audience
+		}
+		outcome, err := notifications.NewWorkflowApprovalOutcome(notifications.WorkflowApprovalFacts{
+			RecipientUserID: recipient.userID,
+			WorkspaceID:     record.WorkspaceID,
+			RunID:           record.ID,
+			StepID:          step.StepID,
+			State:           state,
+			Audience:        audience,
+			PublicationID:   approvalPublicationID(step),
+			WorkflowName:    record.WorkflowName,
+			DaysLeft:        approvalDaysLeft(record, now),
+		})
+		if err != nil {
+			log.Printf("Failed to build approval notification for run %s: %v", record.ID, err)
+			continue
+		}
+		if err := s.notifications.RecordWithDB(ctx, db, outcome); err != nil {
+			log.Printf("Failed to record approval notification for run %s: %v", record.ID, err)
+		}
+	}
+}
+
+// notifyParkedApproval tells the approvers that a run has parked. It runs after
+// the transaction that parked it has committed, and never returns an error.
+func (s *Service) notifyParkedApproval(ctx context.Context, record runRecord, results []StepResult) {
+	if s.notifications == nil || record.State != StateApproval {
+		return
+	}
+	step, ok := parkedApproval(results)
+	if !ok {
+		return
+	}
+	author := runAuthor(record)
+	recipients, err := s.waitingAudience(ctx, s.db, record, author)
+	if err != nil {
+		log.Printf("Failed to resolve approval recipients for run %s: %v", record.ID, err)
+		return
+	}
+	s.recordApprovalState(ctx, s.db, record, step, notifications.ApprovalStateWaiting, "", recipients, time.Now().UTC())
+}
+
+// notifyApprovalExpired tells the approvers and the author that a wait ran out.
+// It runs after the transaction that expired it has committed, and never
+// returns an error.
+func (s *Service) notifyApprovalExpired(ctx context.Context, record runRecord) {
+	if s.notifications == nil {
+		return
+	}
+	step, ok := parkedApproval(decodeRunResults(record))
+	if !ok {
+		return
+	}
+	author := runAuthor(record)
+	recipients, err := s.expiredAudience(ctx, s.db, record, author)
+	if err != nil {
+		log.Printf("Failed to resolve expiry recipients for run %s: %v", record.ID, err)
+		return
+	}
+	s.recordApprovalState(ctx, s.db, record, step, notifications.ApprovalStateExpired, "", recipients, time.Now().UTC())
+}
+
+// remindApprovals tells the approvers of a wait that is running out of time.
+// The reminder is the point of the whole mechanism: without it the only notice
+// arrives when the post is already dead, thirty days after anyone last thought
+// about it.
+//
+// It is idempotent through the notification's own dedup key, so sweeping twice
+// writes nothing the second time. That is why no marker column is needed: the
+// cost is a repeated no-op insert for each run in the reminder band, which is
+// cheaper than a schema change and cannot drift out of sync with reality.
+func (s *Service) remindApprovals(ctx context.Context, now time.Time) error {
 	if s.notifications == nil {
 		return nil
 	}
-	result, ok := parkedApproval(results)
-	if !ok {
-		return nil
-	}
-	author := runAuthor(record)
-	recipients, err := s.approvalRecipients(ctx, db, record.WorkspaceID, author)
-	if err != nil {
+	cutoff := now.Add(-MaxRunAge).Add(ReminderLead)
+	reminding := []runRecord{}
+	if err := s.db.NewSelect().Model(&reminding).
+		Where("state = ? AND created_at < ? AND created_at >= ?", StateApproval, cutoff, now.Add(-MaxRunAge)).
+		Order("created_at ASC").Limit(100).Scan(ctx); err != nil {
 		return err
 	}
-	if len(recipients) == 0 {
-		if author == "" {
-			return nil
+	for _, run := range reminding {
+		step, ok := parkedApproval(decodeRunResults(run))
+		if !ok {
+			continue
 		}
-		recipients = []string{author}
-	}
-	for _, userID := range recipients {
-		outcome, err := notifications.NewApprovalRequestedOutcome(notifications.ApprovalRequestedFacts{
-			RecipientUserID: userID,
-			WorkspaceID:     record.WorkspaceID,
-			RunID:           record.ID,
-			StepID:          result.StepID,
-			PublicationID:   approvalPublicationID(result),
-			WorkflowName:    record.WorkflowName,
-		})
+		author := runAuthor(run)
+		recipients, err := s.waitingAudience(ctx, s.db, run, author)
 		if err != nil {
-			return err
+			log.Printf("Failed to resolve reminder recipients for run %s: %v", run.ID, err)
+			continue
 		}
-		if err := s.notifications.RecordWithDB(ctx, db, outcome); err != nil {
-			return err
-		}
+		s.recordApprovalState(ctx, s.db, run, step, notifications.ApprovalStateReminder, "", recipients, now)
 	}
 	return nil
 }
 
-// expireApprovalWait fails one wait that ran out and tells the people who were
-// waiting on it. The state change and its notifications commit together, so an
-// expired wait is never both silent and final. It reports whether the wait was
-// actually expired, so the caller can record telemetry only for a change that
-// really committed.
+// expireApprovalWait fails one wait that ran out. It reports whether the wait
+// was actually expired, so the caller can notify and record telemetry only for
+// a change that really committed.
+//
+// The compare-and-set covers the revision as well as the state. State alone
+// would still yield one winner, but it would overwrite a row that advanced
+// while remaining in awaiting_approval, and the contract this hook relies on is
+// that a writer only ever replaces the row it read.
 func (s *Service) expireApprovalWait(ctx context.Context, record runRecord, now time.Time) (bool, error) {
 	expired := false
 	err := s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		updated, err := tx.NewUpdate().Model((*runRecord)(nil)).
 			Set("state = ?, error = ?, revision = revision + 1, updated_at = ?", StateFailed, approvalExpiredMessage, now).
-			Where("id = ? AND state = ?", record.ID, StateApproval).Exec(ctx)
+			Where("id = ? AND state = ? AND revision = ?", record.ID, StateApproval, record.Revision).Exec(ctx)
 		if err != nil {
 			return err
 		}
@@ -151,23 +319,43 @@ func (s *Service) expireApprovalWait(ctx context.Context, record runRecord, now 
 			return nil
 		}
 		expired = true
-		return s.recordApprovalExpired(ctx, tx, record)
+		return nil
 	})
-	return expired, err
+	if err != nil || !expired {
+		return expired, err
+	}
+	// After the commit, for the reasons at the top of this file.
+	record.State = StateFailed
+	s.notifyApprovalExpired(ctx, record)
+	return true, nil
 }
 
-// recordApprovalExpired notifies the approvers and the author that a wait ran
-// out. Unlike the request, the author is included: their post died, and today
-// the draft simply disappears from the queue with nothing said.
-func (s *Service) recordApprovalExpired(ctx context.Context, db bun.IDB, record runRecord) error {
+// resolveApprovalNoticesAfterDecision resolves the notices a decided wait left
+// behind, logging rather than failing. It runs after the decision has already
+// committed, so a stale notification is a worse outcome than an error here, but
+// neither is worth undoing a decision that already happened.
+func (s *Service) resolveApprovalNoticesAfterDecision(ctx context.Context, record runRecord) {
+	if err := s.resolveApprovalNotices(ctx, s.db, record); err != nil {
+		log.Printf("Failed to resolve approval notifications for run %s: %v", record.ID, err)
+	}
+}
+
+// resolveApprovalNotices clears the notices that a decided wait left behind.
+// When one approver decides, the others are still holding an item that says
+// "waiting for your approval" and a button that leads to a run which will
+// answer ErrState. The row keeps its place in the history, but stops claiming
+// something untrue.
+func (s *Service) resolveApprovalNotices(ctx context.Context, db bun.IDB, record runRecord) error {
 	if s.notifications == nil {
 		return nil
 	}
-	result, ok := parkedApproval(decodeRunResults(record))
+	step, ok := parkedApproval(decodeRunResults(record))
 	if !ok {
 		return nil
 	}
 	author := runAuthor(record)
+	// Everyone who could have been told, including the author: the notice is
+	// resolved for all of them, not only for whoever happened to be an approver.
 	recipients, err := s.approvalRecipients(ctx, db, record.WorkspaceID, "")
 	if err != nil {
 		return err
@@ -184,20 +372,11 @@ func (s *Service) recordApprovalExpired(ctx context.Context, db bun.IDB, record 
 			recipients = append(recipients, author)
 		}
 	}
-	for _, userID := range recipients {
-		outcome, err := notifications.NewApprovalExpiredOutcome(notifications.ApprovalExpiredFacts{
-			RecipientUserID: userID,
-			WorkspaceID:     record.WorkspaceID,
-			RunID:           record.ID,
-			PublicationID:   approvalPublicationID(result),
-			WorkflowName:    record.WorkflowName,
-		})
-		if err != nil {
-			return err
-		}
-		if err := s.notifications.RecordWithDB(ctx, db, outcome); err != nil {
-			return err
-		}
+	keys := []string{
+		notifications.WorkflowApprovalDedupKey(record.ID, step.StepID, notifications.ApprovalStateWaiting),
+		notifications.WorkflowApprovalDedupKey(record.ID, step.StepID, notifications.ApprovalStateReminder),
 	}
-	return nil
+	return s.notifications.ResolveByDedupKeys(ctx, db, recipients, keys,
+		"Approval already decided",
+		"Someone else decided this approval, so there is nothing left to review.")
 }

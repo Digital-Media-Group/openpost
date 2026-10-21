@@ -2,6 +2,7 @@ package workflows
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/openpost/backend/internal/services/notifications"
 	"github.com/openpost/backend/internal/services/workspaceaccess"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // approvalNotificationService wires a real notification service into a workflow
@@ -56,6 +58,19 @@ func notificationsFor(t *testing.T, s *Service, userID, topic string) []models.U
 	return rows
 }
 
+// noticesInState selects the approval notices a person holds for one state, so
+// a recipient who has both a "waiting" and an "expired" row is unambiguous.
+func noticesInState(t *testing.T, s *Service, userID, state string) []models.UserNotification {
+	t.Helper()
+	matching := []models.UserNotification{}
+	for _, row := range notificationsFor(t, s, userID, notifications.TypeWorkflowApproval) {
+		if strings.Contains(row.DedupKey, ":"+state) {
+			matching = append(matching, row)
+		}
+	}
+	return matching
+}
+
 // parkApproval starts a workflow that stops for approval and returns the run.
 func parkApproval(t *testing.T, s *Service, actor workspaceaccess.ActorFacts) Run {
 	t.Helper()
@@ -69,6 +84,18 @@ func parkApproval(t *testing.T, s *Service, actor workspaceaccess.ActorFacts) Ru
 	return awaiting
 }
 
+// parkApprovalTwice parks the run, then parks it again by driving the service
+// directly. There is no live path that re-parks the same step, but the dedup key
+// is permanent and must still be the thing that makes the two notices distinct,
+// so the test drives the real emission twice instead of asserting on a no-op.
+func emitWaitingTwice(t *testing.T, s *Service, run Run) {
+	t.Helper()
+	var record runRecord
+	require.NoError(t, s.db.NewSelect().Model(&record).Where("id = ?", run.ID).Scan(t.Context()))
+	s.notifyParkedApproval(t.Context(), record, decodeRunResults(record))
+	s.notifyParkedApproval(t.Context(), record, decodeRunResults(record))
+}
+
 // Parking a draft is the moment the queue becomes someone else's problem. Until
 // now it told nobody, which is the whole reason the approval step got worked
 // around by hand.
@@ -79,15 +106,14 @@ func TestParkedApprovalNotifiesTheOtherApprovers(t *testing.T) {
 
 	run := parkApproval(t, s, actor)
 
-	// The approver is told, with a link straight to the run that is waiting.
-	approver := notificationsFor(t, s, "approver", notifications.TypeApprovalRequested)
+	approver := notificationsFor(t, s, "approver", notifications.TypeWorkflowApproval)
 	require.Len(t, approver, 1)
-	require.Equal(t, "/workflows?run="+run.ID, approver[0].Href)
+	require.Contains(t, approver[0].Href, "run="+run.ID)
 	require.Equal(t, "ws", approver[0].WorkspaceID)
 
 	// The author is not told: they just parked it, and the wait is for somebody
 	// else.
-	require.Empty(t, notificationsFor(t, s, "user", notifications.TypeApprovalRequested))
+	require.Empty(t, notificationsFor(t, s, "user", notifications.TypeWorkflowApproval))
 }
 
 // The client role exists so the person who owns the accounts can decide an
@@ -103,13 +129,11 @@ func TestParkedApprovalNotifiesClientsBecauseTheyCanApprove(t *testing.T) {
 
 	run := parkApproval(t, s, actor)
 
-	client := notificationsFor(t, s, "client", notifications.TypeApprovalRequested)
+	client := notificationsFor(t, s, "client", notifications.TypeWorkflowApproval)
 	require.Len(t, client, 1)
-	require.Equal(t, "/workflows?run="+run.ID, client[0].Href)
+	require.Contains(t, client[0].Href, "run="+run.ID)
 
-	// The fallback must not fire: the client could decide, so the author is not
-	// substituted in.
-	require.Empty(t, notificationsFor(t, s, "user", notifications.TypeApprovalRequested))
+	require.Empty(t, notificationsFor(t, s, "user", notifications.TypeWorkflowApproval))
 }
 
 // The audience follows the same matrix that authorizes the decision. An editor
@@ -124,14 +148,39 @@ func TestParkedApprovalSkipsRolesThatCannotApprove(t *testing.T) {
 	run := parkApproval(t, s, actor)
 
 	for _, userID := range []string{"editor", "viewer"} {
-		require.Empty(t, notificationsFor(t, s, userID, notifications.TypeApprovalRequested), userID)
+		require.Empty(t, notificationsFor(t, s, userID, notifications.TypeWorkflowApproval), userID)
 	}
 
 	// Nobody in this workspace could approve except the author, so the author is
-	// told after all rather than leaving the wait invisible.
-	author := notificationsFor(t, s, "user", notifications.TypeApprovalRequested)
+	// told after all rather than leaving the wait invisible. The author here is
+	// an administrator, so the copy invites them to decide it.
+	author := notificationsFor(t, s, "user", notifications.TypeWorkflowApproval)
 	require.Len(t, author, 1)
-	require.Equal(t, "/workflows?run="+run.ID, author[0].Href)
+	require.Contains(t, author[0].Href, "run="+run.ID)
+}
+
+// A workspace where nobody — not even the author — can approve cannot end in an
+// approval. Telling that author to review the post would be a dead button, so
+// the audience resolver marks them separately and the copy names the real
+// problem. Demoting the author mid-run would fail the run's own authorization,
+// so this drives the resolver that makes the decision.
+func TestWaitingAudienceMarksAnAuthorWhoCannotApprove(t *testing.T) {
+	s, actor := workflowTestService(t, approvalAction())
+	run := parkApproval(t, s, actor)
+
+	_, err := s.db.NewUpdate().Model((*models.WorkspaceMember)(nil)).
+		Set("role = ?", models.WorkspaceRoleEditor).
+		Where("workspace_id = ? AND user_id = ?", "ws", actor.UserID).Exec(t.Context())
+	require.NoError(t, err)
+
+	var record runRecord
+	require.NoError(t, s.db.NewSelect().Model(&record).Where("id = ?", run.ID).Scan(t.Context()))
+
+	recipients, err := s.waitingAudience(t.Context(), s.db, record, actor.UserID)
+	require.NoError(t, err)
+	require.Len(t, recipients, 1)
+	require.Equal(t, actor.UserID, recipients[0].userID)
+	require.Equal(t, notifications.ApprovalAudienceNoApprover, recipients[0].audience)
 }
 
 // An inactive member keeps their role but has left the workspace, so they must
@@ -147,7 +196,7 @@ func TestParkedApprovalSkipsInactiveMembers(t *testing.T) {
 
 	parkApproval(t, s, actor)
 
-	require.Empty(t, notificationsFor(t, s, "gone", notifications.TypeApprovalRequested))
+	require.Empty(t, notificationsFor(t, s, "gone", notifications.TypeWorkflowApproval))
 }
 
 // A workspace whose only approver is the author would otherwise park a draft and
@@ -158,25 +207,28 @@ func TestParkedApprovalFallsBackToTheAuthorWhenNobodyElseCanApprove(t *testing.T
 
 	run := parkApproval(t, s, actor)
 
-	author := notificationsFor(t, s, "user", notifications.TypeApprovalRequested)
+	author := notificationsFor(t, s, "user", notifications.TypeWorkflowApproval)
 	require.Len(t, author, 1)
-	require.Equal(t, "/workflows?run="+run.ID, author[0].Href)
+	require.Contains(t, author[0].Href, "run="+run.ID)
 }
 
-// Re-running the same step must not pile up duplicate notifications.
+// The same wait, emitted twice, must leave one row. This drives the real
+// emission twice rather than re-running a job that cannot claim an
+// awaiting_approval run, so it actually reaches the insert both times.
 func TestParkedApprovalNotifiesOncePerWait(t *testing.T) {
 	s, actor := workflowTestService(t, approvalAction())
 	approvalNotificationService(t, s)
 	addApprover(t, s, "approver", models.WorkspaceRoleAdmin)
 
 	run := parkApproval(t, s, actor)
-	runJob(t, s, run.ID)
+	emitWaitingTwice(t, s, run)
 
-	require.Len(t, notificationsFor(t, s, "approver", notifications.TypeApprovalRequested), 1)
+	require.Len(t, notificationsFor(t, s, "approver", notifications.TypeWorkflowApproval), 1)
 }
 
 // An expiry is final and used to be silent. Both the approvers and the author
-// are told, because the author's post just died.
+// are told, because the author's post just died — and they are told different
+// things.
 func TestExpiredApprovalNotifiesApproversAndAuthor(t *testing.T) {
 	s, actor := workflowTestService(t, approvalAction())
 	approvalNotificationService(t, s)
@@ -196,19 +248,181 @@ func TestExpiredApprovalNotifiesApproversAndAuthor(t *testing.T) {
 	require.NoError(t, s.db.NewSelect().Model(&stored).Where("id = ?", run.ID).Scan(t.Context()))
 	require.Equal(t, StateFailed, stored.State)
 
-	// The client is told too: they could have approved it, so its death is
-	// theirs to hear about.
-	for _, userID := range []string{"approver", "client", "user"} {
-		rows := notificationsFor(t, s, userID, notifications.TypeApprovalExpired)
-		require.Len(t, rows, 1, userID)
-		require.Equal(t, "/workflows?run="+run.ID, rows[0].Href)
+	for _, userID := range []string{"approver", "client"} {
+		expired := noticesInState(t, s, userID, "expired")
+		require.Len(t, expired, 1, userID)
+		require.Contains(t, expired[0].Href, "run="+run.ID)
+		require.Contains(t, expired[0].Title, "expired")
 	}
+
+	author := noticesInState(t, s, "user", "expired")
+	require.Len(t, author, 1)
+	require.Contains(t, author[0].Title, "Your post was not published")
+	require.Contains(t, author[0].Href, "publication=post-1")
 
 	// A second sweep must not re-report an expiry that was already recorded.
 	require.NoError(t, s.sweep(context.Background()))
 	for _, userID := range []string{"approver", "client", "user"} {
-		require.Len(t, notificationsFor(t, s, userID, notifications.TypeApprovalExpired), 1, userID)
+		require.Len(t, noticesInState(t, s, userID, "expired"), 1, userID)
 	}
+}
+
+// A wait that is about to run out is mentioned while the reader can still act
+// on it. Without this the only notice arrives thirty days later, when the post
+// is already dead.
+func TestApprovalReminderFiresInsideTheReminderWindow(t *testing.T) {
+	s, actor := workflowTestService(t, approvalAction())
+	approvalNotificationService(t, s)
+	addApprover(t, s, "approver", models.WorkspaceRoleAdmin)
+
+	run := parkApproval(t, s, actor)
+
+	// Too early: a fresh wait is nowhere near its deadline.
+	require.NoError(t, s.sweep(context.Background()))
+	for _, row := range notificationsFor(t, s, "approver", notifications.TypeWorkflowApproval) {
+		require.NotContains(t, row.Title, "Still waiting", "a fresh wait must not be reminded")
+	}
+
+	// Move the wait into the reminder band: inside ReminderLead of the deadline.
+	_, err := s.db.NewUpdate().Model((*runRecord)(nil)).
+		Set("created_at = ?", time.Now().UTC().Add(-MaxRunAge+48*time.Hour)).
+		Where("id = ?", run.ID).Exec(t.Context())
+	require.NoError(t, err)
+	require.NoError(t, s.sweep(context.Background()))
+
+	var reminded []models.UserNotification
+	for _, row := range notificationsFor(t, s, "approver", notifications.TypeWorkflowApproval) {
+		if row.Title == "Still waiting for your approval" {
+			reminded = append(reminded, row)
+		}
+	}
+	require.Len(t, reminded, 1)
+	require.Contains(t, reminded[0].Body, "2 days")
+
+	// Sweeping again is a no-op: the dedup key carries the idempotency.
+	require.NoError(t, s.sweep(context.Background()))
+	count := 0
+	for _, row := range notificationsFor(t, s, "approver", notifications.TypeWorkflowApproval) {
+		if row.Title == "Still waiting for your approval" {
+			count++
+		}
+	}
+	require.Equal(t, 1, count)
+}
+
+// A recipient whose stored preferences cannot be decoded used to make the park
+// itself fail: the notification ran inside the run's transaction, so the error
+// rolled the state change back, the run stayed behind its lease, the sweep
+// re-enqueued it and the step replayed — forever, invisibly. The state change
+// must survive a notification that cannot be written.
+func TestParkedApprovalSurvivesAPoisonedRecipient(t *testing.T) {
+	s, actor := workflowTestService(t, approvalAction())
+	approvalNotificationService(t, s)
+	addApprover(t, s, "approver", models.WorkspaceRoleAdmin)
+	addApprover(t, s, "broken", models.WorkspaceRoleClient)
+
+	_, err := s.db.NewInsert().Model(&models.UserNotificationPreference{
+		UserID: "broken", PreferencesJSON: "{not json", UpdatedAt: time.Now().UTC(),
+	}).Exec(t.Context())
+	require.NoError(t, err)
+
+	// The run must still park, and the healthy recipient must still be told.
+	run := parkApproval(t, s, actor)
+	require.Equal(t, StateApproval, run.State)
+	require.Len(t, notificationsFor(t, s, "approver", notifications.TypeWorkflowApproval), 1)
+	require.Empty(t, notificationsFor(t, s, "broken", notifications.TypeWorkflowApproval))
+}
+
+// The expiry batch must not be stopped by one run that cannot be notified.
+// Before this, expireApprovals returned on the first error, so a single poisoned
+// run left every other wait unexpired, every minute.
+func TestExpiryBatchIsNotStoppedByOneRun(t *testing.T) {
+	s, actor := workflowTestService(t, approvalAction())
+	approvalNotificationService(t, s)
+	addApprover(t, s, "approver", models.WorkspaceRoleAdmin)
+
+	first := parkApproval(t, s, actor)
+	second := parkApproval(t, s, actor)
+
+	_, err := s.db.NewUpdate().Model((*runRecord)(nil)).
+		Set("created_at = ?", time.Now().UTC().Add(-MaxRunAge-time.Hour)).
+		Where("id IN (?)", bun.List([]string{first.ID, second.ID})).Exec(t.Context())
+	require.NoError(t, err)
+
+	require.NoError(t, s.sweep(context.Background()))
+
+	// Both expired, not just the first one in the batch.
+	for _, id := range []string{first.ID, second.ID} {
+		var stored runRecord
+		require.NoError(t, s.db.NewSelect().Model(&stored).Where("id = ?", id).Scan(t.Context()))
+		require.Equal(t, StateFailed, stored.State, id)
+	}
+	require.Len(t, noticesInState(t, s, "approver", "expired"), 2)
+}
+
+// A stale compare-and-set must not expire a row that moved on. The revision is
+// part of the guard, so a caller holding an older revision loses the race.
+func TestExpireApprovalWaitRequiresTheCurrentRevision(t *testing.T) {
+	s, actor := workflowTestService(t, approvalAction())
+	approvalNotificationService(t, s)
+	addApprover(t, s, "approver", models.WorkspaceRoleAdmin)
+
+	run := parkApproval(t, s, actor)
+
+	var stale runRecord
+	require.NoError(t, s.db.NewSelect().Model(&stale).Where("id = ?", run.ID).Scan(t.Context()))
+	stale.Revision-- // a reader that saw the row before it parked
+
+	expired, err := s.expireApprovalWait(t.Context(), stale, time.Now().UTC())
+	require.NoError(t, err)
+	require.False(t, expired, "a stale revision must not expire the wait")
+
+	var stored runRecord
+	require.NoError(t, s.db.NewSelect().Model(&stored).Where("id = ?", run.ID).Scan(t.Context()))
+	require.Equal(t, StateApproval, stored.State)
+
+	// With the current revision it goes through.
+	expired, err = s.expireApprovalWait(t.Context(), stored, time.Now().UTC())
+	require.NoError(t, err)
+	require.True(t, expired)
+}
+
+// Deciding a wait must resolve the notices it left behind, or the other
+// approvers keep a button that now answers ErrState.
+func TestApprovingResolvesTheOtherApproversNotices(t *testing.T) {
+	s, actor := workflowTestService(t, approvalAction())
+	approvalNotificationService(t, s)
+	addApprover(t, s, "approver", models.WorkspaceRoleAdmin)
+	addApprover(t, s, "client", models.WorkspaceRoleClient)
+
+	run := parkApproval(t, s, actor)
+	require.Len(t, notificationsFor(t, s, "client", notifications.TypeWorkflowApproval), 1)
+
+	clientActor := workspaceaccess.ActorFacts{UserID: "client"}
+	_, err := s.Approve(t.Context(), clientActor, "ws", run.ID, run.Revision, 1)
+	require.NoError(t, err)
+
+	rows := notificationsFor(t, s, "approver", notifications.TypeWorkflowApproval)
+	require.Len(t, rows, 1)
+	require.False(t, rows[0].ReadAt.IsZero(), "the stale notice must be resolved")
+	require.Contains(t, rows[0].Title, "already decided")
+}
+
+// Cancelling is also how an approval is declined. The approvers must hear that
+// their wait is over; today they hear nothing at all.
+func TestCancellingResolvesTheApproversNotices(t *testing.T) {
+	s, actor := workflowTestService(t, approvalAction())
+	approvalNotificationService(t, s)
+	addApprover(t, s, "approver", models.WorkspaceRoleAdmin)
+
+	run := parkApproval(t, s, actor)
+
+	_, err := s.Cancel(t.Context(), actor, "ws", run.ID, run.Revision)
+	require.NoError(t, err)
+
+	rows := notificationsFor(t, s, "approver", notifications.TypeWorkflowApproval)
+	require.Len(t, rows, 1)
+	require.False(t, rows[0].ReadAt.IsZero())
 }
 
 // A workflow service without a notification service must keep running. The

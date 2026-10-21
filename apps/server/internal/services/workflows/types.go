@@ -53,6 +53,11 @@ const (
 	KindFeed       = "read_feed"
 )
 
+// ReminderLead is how long before the deadline a parked approval is mentioned
+// again. An expiry notice alone arrives after everyone has stopped thinking
+// about the draft, which is too late to act on it.
+const ReminderLead = 72 * time.Hour
+
 var (
 	ErrNotFound     = errors.New("workflow not found")
 	ErrConflict     = errors.New("workflow changed; reload before saving")

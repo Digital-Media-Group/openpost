@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"strconv"
 	"time"
 
@@ -89,6 +90,13 @@ func (s *Service) sweep(ctx context.Context) error {
 }
 
 func (s *Service) expireApprovals(ctx context.Context, now time.Time) error {
+	// Reminders go first: a wait that is about to expire should be mentioned
+	// before it does, not after.
+	if err := s.remindApprovals(ctx, now); err != nil {
+		// A reminder that cannot be computed must not stop expiries, which are
+		// the transitions that actually change state.
+		log.Printf("Failed to send approval reminders: %v", err)
+	}
 	expiring := []runRecord{}
 	if err := s.db.NewSelect().Model(&expiring).Where("state = ? AND created_at < ?", StateApproval, now.Add(-MaxRunAge)).Limit(100).Scan(ctx); err != nil {
 		return err
@@ -96,7 +104,11 @@ func (s *Service) expireApprovals(ctx context.Context, now time.Time) error {
 	for _, run := range expiring {
 		expired, err := s.expireApprovalWait(ctx, run, now)
 		if err != nil {
-			return err
+			// One run that cannot be expired must not hold up the rest of the
+			// batch. Before this, a single poisoned row stopped every other
+			// wait from expiring, every minute, forever.
+			log.Printf("Failed to expire approval run %s: %v", run.ID, err)
+			continue
 		}
 		if expired {
 			s.captureFinishedRun(ctx, run, StateFailed, len(decodeRunResults(run)))

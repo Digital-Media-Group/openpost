@@ -150,6 +150,7 @@ func (s *Service) finishRunStep(ctx context.Context, record runRecord, results [
 		return err
 	}
 	committed := false
+	var settled runRecord
 	err = s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		if err := organizationguard.LockWorkspace(ctx, tx, record.WorkspaceID); err != nil {
 			return err
@@ -182,30 +183,31 @@ func (s *Service) finishRunStep(ctx context.Context, record runRecord, results [
 		committed = true
 		current.Revision++
 		current.State = state
-		return s.settleCommittedRun(ctx, tx, current, results, wakeAt)
+		settled = current
+		// Queueing the next attempt is durable work that must not outlive a
+		// rollback, so it stays in the transaction. Notifications do not: see
+		// notifyParkedApproval.
+		return s.enqueueNextAttempt(ctx, tx, current, wakeAt)
 	})
 	if err == nil && committed {
 		s.captureFinishedRun(ctx, record, state, len(results))
+		s.notifyParkedApproval(ctx, settled, results)
 	}
 	return err
 }
 
-// settleCommittedRun does the work that follows a committed run update: a run
-// that parked for approval tells the people who can decide it, and a run that
-// still has steps queues its next attempt. Both run in the transaction that
-// wrote the state, so a notification cannot outlive a rolled-back change.
-func (s *Service) settleCommittedRun(ctx context.Context, db bun.IDB, current runRecord, results []StepResult, wakeAt *time.Time) error {
-	if current.State == StateApproval {
-		return s.recordApprovalRequested(ctx, db, current, results)
+// enqueueNextAttempt queues a run that still has steps to execute. It stays in
+// the transaction that wrote the state: a job that survived a rollback would
+// execute a transition that never happened.
+func (s *Service) enqueueNextAttempt(ctx context.Context, db bun.IDB, current runRecord, wakeAt *time.Time) error {
+	if current.State != StateQueued && current.State != StateWaiting {
+		return nil
 	}
-	if current.State == StateQueued || current.State == StateWaiting {
-		runAt := time.Now().UTC()
-		if wakeAt != nil {
-			runAt = *wakeAt
-		}
-		return enqueueRun(ctx, db, current, runAt)
+	runAt := time.Now().UTC()
+	if wakeAt != nil {
+		runAt = *wakeAt
 	}
-	return nil
+	return enqueueRun(ctx, db, current, runAt)
 }
 
 func number(value any) (float64, error) {

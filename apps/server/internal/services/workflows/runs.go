@@ -147,6 +147,7 @@ func (s *Service) Cancel(ctx context.Context, actor workspaceaccess.ActorFacts, 
 	if _, err := s.authorize(ctx, actor, workspaceID, workspaceaccess.LevelAdminister); err != nil {
 		return Run{}, err
 	}
+	var cancelled runRecord
 	err := s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		if err := organizationguard.LockWorkspace(ctx, tx, workspaceID); err != nil {
 			return err
@@ -159,11 +160,17 @@ func (s *Service) Cancel(ctx context.Context, actor workspaceaccess.ActorFacts, 
 		if n, _ := result.RowsAffected(); n != 1 {
 			return ErrState
 		}
-		return nil
+		// Read back the row that was just cancelled so the notices it left
+		// behind can be resolved. The stored results still describe the parked
+		// step, which is what resolution needs.
+		return tx.NewSelect().Model(&cancelled).Where("id = ?", id).Scan(ctx)
 	})
 	if err != nil {
 		return Run{}, err
 	}
+	// Cancelling is also how an approval is declined, so the approvers must
+	// hear that their wait is over. Today they hear nothing at all.
+	s.resolveApprovalNoticesAfterDecision(ctx, cancelled)
 
 	return s.GetRun(ctx, actor, workspaceID, id)
 }
@@ -251,6 +258,10 @@ func (s *Service) resumeApprovedRun(ctx context.Context, record runRecord, run R
 	if err != nil {
 		return err
 	}
+	// The other approvers are still holding an item that says the wait is open,
+	// with a button that would now answer ErrState. Resolving it is a courtesy
+	// that must not undo a committed decision, so it runs after the commit.
+	s.resolveApprovalNoticesAfterDecision(ctx, record)
 	return nil
 }
 
