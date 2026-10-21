@@ -41,19 +41,16 @@ describe('notification topic presentation', () => {
 		expect(notificationTopicEmailFrequencies(backendDefinition)).toEqual(['immediate']);
 	});
 
-	it('presents the approval topics with localized copy', () => {
+	it('presents the approval topic with localized copy', () => {
 		setLocale('en', { reload: false });
-		expect(notificationTopicLabel('approval_requested')).toBe('Approval requested');
-		expect(notificationTopicLabel('approval_expired')).toBe('Approval expired');
-		expect(notificationTopicDescription('approval_requested')).not.toBe('Notification');
-		expect(notificationTopicDescription('approval_expired')).not.toBe('Notification');
+		expect(notificationTopicLabel('workflow_approval')).toBe('Workflow approval');
+		expect(notificationTopicDescription('workflow_approval')).not.toBe('Notification');
 
 		setLocale('es', { reload: false });
-		expect(notificationTopicLabel('approval_requested')).toBe('Aprobación solicitada');
-		expect(notificationTopicLabel('approval_expired')).toBe('Aprobación caducada');
+		expect(notificationTopicLabel('workflow_approval')).toBe('Aprobación de flujo de trabajo');
 	});
 
-	it('groups the approval topics under publishing', () => {
+	it('groups the approval topic under publishing', () => {
 		setLocale('en', { reload: false });
 		const definition = (id: string): NotificationTopicDefinition => ({
 			...backendDefinition,
@@ -68,12 +65,12 @@ describe('notification topic presentation', () => {
 			default_preference: { in_app: true, email_frequency: 'off' }
 		});
 		expect(
-			notificationTopicGroups([definition('approval_requested'), definition('approval_expired')])
+			notificationTopicGroups([definition('workflow_approval')])
 		).toEqual([
 			{
 				id: 'publishing',
 				label: 'Publishing',
-				topics: [definition('approval_requested'), definition('approval_expired')]
+				topics: [definition('workflow_approval')]
 			}
 		]);
 	});

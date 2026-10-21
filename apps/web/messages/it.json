@@ -9938,6 +9938,8 @@
 	"review_title": "Revisione del cliente",
 	"notifications_event_post_review": "Revisioni dei post",
 	"notifications_event_post_review_description": "Richieste e decisioni di revisione del cliente.",
+	"notifications_event_workflow_approval": "Approvazione del workflow",
+	"notifications_event_workflow_approval_description": "Un post è in attesa di una decisione. Ricevi un promemoria prima della scadenza.",
 	"series_title": "Crea una serie",
 	"series_description": "Scegli e modifica concetti distinti prima di generare i post. Le fonti con poche informazioni potrebbero produrre meno concetti.",
 	"series_failed": "Impossibile completare questa azione della serie. Riprova.",

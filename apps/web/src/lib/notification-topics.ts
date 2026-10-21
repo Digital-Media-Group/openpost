@@ -27,15 +27,10 @@ const notificationPresentation = {
 		description: m.notifications_event_account_needs_attention_description,
 		icon: { kind: 'theme', role: 'user' }
 	},
-	approval_requested: {
-		label: m.notifications_event_approval_requested,
-		description: m.notifications_event_approval_requested_description,
-		icon: { kind: 'protected', role: 'success' }
-	},
-	approval_expired: {
-		label: m.notifications_event_approval_expired,
-		description: m.notifications_event_approval_expired_description,
-		icon: { kind: 'protected', role: 'error' }
+	workflow_approval: {
+		label: m.notifications_event_workflow_approval,
+		description: m.notifications_event_workflow_approval_description,
+		icon: { kind: 'theme', role: 'feedback' }
 	},
 	new_engagement: {
 		label: m.notifications_event_new_engagement,
