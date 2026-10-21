@@ -539,17 +539,28 @@ func TestApprovalRecipientRechecksRoleBeforeDelivery(t *testing.T) {
 	require.Empty(t, notificationsFor(t, s, "client"))
 }
 
-func TestApprovedNoticeDoesNotBecomeExpiredAfterLaterRunFailure(t *testing.T) {
-	s, actor := workflowTestService(t, approvalAction())
-	approvalNotificationService(t, s)
-	run := parkApproval(t, s, actor)
-	_, err := s.Approve(t.Context(), actor, "ws", run.ID, run.Revision, 1)
-	require.NoError(t, err)
-	_, err = s.db.NewUpdate().Model((*runRecord)(nil)).Set("state = ?, error = ?, current_step_id = ?", StateFailed, "Later step failed", "outcomes").Where("id = ?", run.ID).Exec(t.Context())
-	require.NoError(t, err)
-	require.NoError(t, s.HandleJob(t.Context(), "workflow_approval_notice", fmt.Sprintf(`{"run_id":%q,"step_id":"review","state":"resolved"}`, run.ID)))
-	rows := notificationsFor(t, s, "user")
-	require.Len(t, rows, 1)
-	require.Contains(t, rows[0].Title, "decided")
-	require.NotContains(t, rows[0].Title, "expired")
+func TestApprovedNoticeRetainsDecisionAfterRunEnds(t *testing.T) {
+	for _, state := range []string{StateFailed, StateCancelled} {
+		t.Run(state, func(t *testing.T) {
+			s, actor := workflowTestService(t, approvalAction())
+			approvalNotificationService(t, s)
+			run := parkApproval(t, s, actor)
+			approved, err := s.Approve(t.Context(), actor, "ws", run.ID, run.Revision, 1)
+			require.NoError(t, err)
+			if state == StateCancelled {
+				_, err = s.Cancel(t.Context(), actor, "ws", run.ID, approved.Revision)
+			} else {
+				_, err = s.db.NewUpdate().Model((*runRecord)(nil)).Set("state = ?, error = ?, current_step_id = ?", state, "Later step failed", "outcomes").Where("id = ?", run.ID).Exec(t.Context())
+			}
+			require.NoError(t, err)
+			var job models.Job
+			require.NoError(t, s.db.NewSelect().Model(&job).Where("type = ? AND dedupe_key = ?", "workflow_approval_notice", run.ID+":review:resolved").Scan(t.Context()))
+			require.NoError(t, s.HandleJob(t.Context(), job.Type, job.Payload))
+			rows := notificationsFor(t, s, "user")
+			require.Len(t, rows, 1)
+			require.Contains(t, rows[0].Title, "decided")
+			require.NotContains(t, rows[0].Title, "expired")
+			require.NotContains(t, rows[0].Title, "cancelled")
+		})
+	}
 }

@@ -442,7 +442,9 @@ func (s *Service) resolveApprovalNotices(ctx context.Context, db bun.IDB, record
 			title, body = "Approval expired", "The approval window closed, so there is nothing left to review."
 		}
 	case StateCancelled:
-		title, body = "Approval cancelled", "This workflow was cancelled, so there is nothing left to review."
+		if step, ok := parkedApproval(decodeRunResults(record)); ok && step.StepID == stepID {
+			title, body = "Approval cancelled", "This workflow was cancelled, so there is nothing left to review."
+		}
 	}
 
 	return s.notifications.ResolveByDedupKeys(ctx, db, recipients, keys,
