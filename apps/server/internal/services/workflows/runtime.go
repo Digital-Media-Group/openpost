@@ -183,7 +183,13 @@ func (s *Service) finishRunStep(ctx context.Context, record runRecord, results [
 		committed = true
 		current.Revision++
 		current.State = state
+		current.CurrentStepID = currentStep
 		settled = current
+		if state == StateApproval {
+			if err := s.enqueueApprovalNotice(ctx, tx, current, current.CurrentStepID, "waiting"); err != nil {
+				return err
+			}
+		}
 		// Queueing the next attempt is durable work that must not outlive a
 		// rollback, so it stays in the transaction. Notifications do not: see
 		// notifyParkedApproval.

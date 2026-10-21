@@ -45,6 +45,16 @@ func (s *Service) HandleJob(ctx context.Context, kind, payload string) error {
 		return err
 	}
 	switch kind {
+	case jobregistry.TypeWorkflowApprovalNotice:
+		if decoded["run_id"] == "" || decoded["step_id"] == "" {
+			return errors.New("approval notification has no run or step ID")
+		}
+		switch decoded["state"] {
+		case "waiting", "expired", "resolved":
+		default:
+			return errors.New("invalid approval notification state")
+		}
+		return s.deliverApprovalNotice(ctx, decoded["run_id"], decoded["step_id"], decoded["state"])
 	case jobregistry.TypeWorkflowPoll:
 		if decoded["workflow_id"] == "" {
 			return errors.New("workflow job has no workflow ID")

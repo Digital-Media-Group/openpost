@@ -1127,25 +1127,34 @@ func parseCursor(cursor string) (time.Time, string, error) {
 	return createdAt, parts[1], nil
 }
 
-// ResolveByDedupKeys marks notifications read and replaces their text, so a row
-// that announced a wait stops claiming the wait is still open. Marking it read
-// alone would clear the unread badge but leave the history saying something
-// untrue, which is why the body is rewritten in the same statement.
-//
-// The user_id predicate is not optional: the unique index is
-// (user_id, dedup_key), so filtering by dedup_key alone would scan every row
-// that ever carried the key instead of walking the index.
+// ResolveByDedupKeys retires stored notices for their original recipients.
+// Preserve read timestamps and payload facts, but remove obsolete actions.
 func (s *Service) ResolveByDedupKeys(ctx context.Context, db bun.IDB, userIDs, dedupKeys []string, title, body string) error {
 	if len(userIDs) == 0 || len(dedupKeys) == 0 {
 		return nil
 	}
-	_, err := db.NewUpdate().Model((*models.UserNotification)(nil)).
-		Set("read_at = ?, title = ?, body = ?", s.now(), strings.TrimSpace(title), strings.TrimSpace(body)).
-		Where("user_id IN (?)", bun.List(userIDs)).
-		Where("dedup_key IN (?)", bun.List(dedupKeys)).
-		Where("read_at IS NULL").
-		Exec(ctx)
-	return err
+	rows := []models.UserNotification{}
+	if err := db.NewSelect().Model(&rows).Column("id", "payload_json").
+		Where("user_id IN (?)", bun.List(userIDs)).Where("dedup_key IN (?)", bun.List(dedupKeys)).Scan(ctx); err != nil {
+		return err
+	}
+	for _, row := range rows {
+		var payload map[string]json.RawMessage
+		if err := json.Unmarshal([]byte(row.PayloadJSON), &payload); err != nil {
+			return err
+		}
+		delete(payload, "actions")
+		encoded, err := json.Marshal(payload)
+		if err != nil {
+			return err
+		}
+		if _, err := db.NewUpdate().Model((*models.UserNotification)(nil)).
+			Set("read_at = COALESCE(read_at, ?), title = ?, body = ?, payload_json = ?", s.now(), strings.TrimSpace(title), strings.TrimSpace(body), string(encoded)).
+			Where("id = ?", row.ID).Exec(ctx); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Service) MarkRead(ctx context.Context, userID, workspaceID string, ids []string, all bool) error {

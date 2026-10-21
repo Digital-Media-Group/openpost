@@ -15,3 +15,5 @@
 - Restore the revision to the expiry compare-and-set. The guard had been narrowed to the state alone, which still yields one winner but no longer matches the contract that a writer only replaces the row it read.
 - Carry the workspace in the notification link. The run inspector resolves a run against the workspace the viewer is in, so an approver arriving from another workspace landed on an empty inspector.
 - Read the deep link reactively. The requested run was captured once at mount, so clicking a second approval notification while the page was already open did nothing.
+- Persist approval notification intents with the run transition and retry delivery through database jobs. Recheck the current run and recipient permissions under the workspace fence, so delayed requests cannot reopen decided waits.
+- Visit every eligible reminder batch, resolve notices for their original recipients after role changes, preserve read timestamps, and remove obsolete review actions from history. Post links open the post detail directly.

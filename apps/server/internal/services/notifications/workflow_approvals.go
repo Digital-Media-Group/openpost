@@ -120,7 +120,7 @@ func approvalRunHref(runID, workspaceID string) string {
 }
 
 func approvalPublicationHref(publicationID, workspaceID string) string {
-	return "/publications?publication=" + url.QueryEscape(publicationID) + "&workspace_id=" + url.QueryEscape(workspaceID)
+	return "/publications/" + url.PathEscape(publicationID) + "?workspace_id=" + url.QueryEscape(workspaceID)
 }
 
 func materializeWorkflowApproval(value semanticOutcome) (createInput, error) {
@@ -140,9 +140,15 @@ func materializeWorkflowApproval(value semanticOutcome) (createInput, error) {
 		switch audience {
 		case ApprovalAudienceNoApprover:
 			input.Title = "Nobody can approve this post"
-			input.Body = "This workflow is waiting for an approval nobody in this workspace is allowed to give. Give someone the client role, or approve it yourself if you can."
-			input.Href = approvalPublicationHref(publicationID, value.workspaceID)
-			input.Actions = []models.NotificationAction{{Label: "Open post", Href: input.Href, Kind: "primary"}}
+			input.Body = "This workflow is waiting for an approval nobody in this workspace is allowed to give. Ask a workspace administrator to assign someone the client or admin role."
+			if publicationID != "" {
+				input.Href = approvalPublicationHref(publicationID, value.workspaceID)
+			}
+			label := "View workflow run"
+			if publicationID != "" {
+				label = "Open post"
+			}
+			input.Actions = []models.NotificationAction{{Label: label, Href: input.Href, Kind: "primary"}}
 		default:
 			input.Title = "A post is waiting for your approval"
 			input.Body = approvalBodyWithName(workflowName, "OpenPost paused this workflow until someone approves or rejects the post.")
@@ -159,6 +165,16 @@ func materializeWorkflowApproval(value semanticOutcome) (createInput, error) {
 			input.Body = pluralDays(daysLeft) + " left before this approval expires and the post is not published."
 		}
 		input.Actions = []models.NotificationAction{{Label: "Review post", Href: input.Href, Kind: "primary"}}
+		if audience == ApprovalAudienceNoApprover {
+			input.Title = "Nobody can approve this post"
+			input.Body += " Ask a workspace administrator to assign someone the client or admin role."
+			label := "View workflow run"
+			if publicationID != "" {
+				input.Href = approvalPublicationHref(publicationID, value.workspaceID)
+				label = "Open post"
+			}
+			input.Actions = []models.NotificationAction{{Label: label, Href: input.Href, Kind: "primary"}}
+		}
 	case ApprovalStateExpired:
 		if audience == ApprovalAudienceAuthor {
 			input.Title = "Your post was not published"

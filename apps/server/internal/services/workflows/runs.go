@@ -163,7 +163,13 @@ func (s *Service) Cancel(ctx context.Context, actor workspaceaccess.ActorFacts, 
 		// Read back the row that was just cancelled so the notices it left
 		// behind can be resolved. The stored results still describe the parked
 		// step, which is what resolution needs.
-		return tx.NewSelect().Model(&cancelled).Where("id = ?", id).Scan(ctx)
+		if err := tx.NewSelect().Model(&cancelled).Where("id = ?", id).Scan(ctx); err != nil {
+			return err
+		}
+		if step, ok := parkedApproval(decodeRunResults(cancelled)); ok {
+			return s.enqueueApprovalNotice(ctx, tx, cancelled, step.StepID, "resolved")
+		}
+		return nil
 	})
 	if err != nil {
 		return Run{}, err
@@ -244,6 +250,9 @@ func (s *Service) resumeApprovedRun(ctx context.Context, record runRecord, run R
 		return err
 	}
 	err = s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		if err := organizationguard.LockWorkspace(ctx, tx, workspaceID); err != nil {
+			return err
+		}
 		result, err := tx.NewUpdate().Model((*runRecord)(nil)).Set("state = ?, results_json = ?, remaining_json = ?, current_step_id = '', revision = revision + 1, updated_at = ?", StateQueued, string(resultsJSON), string(remainingJSON), now).
 			Where("id = ? AND workspace_id = ? AND revision = ? AND state = ?", id, workspaceID, expected, StateApproval).Exec(ctx)
 		if err != nil {
@@ -253,6 +262,9 @@ func (s *Service) resumeApprovedRun(ctx context.Context, record runRecord, run R
 			return ErrState
 		}
 		record.Revision++
+		if err := s.enqueueApprovalNotice(ctx, tx, record, step.StepID, "resolved"); err != nil {
+			return err
+		}
 		return enqueueRun(ctx, tx, record, now)
 	})
 	if err != nil {

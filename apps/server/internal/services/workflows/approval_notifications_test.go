@@ -2,6 +2,7 @@ package workflows
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -56,13 +57,13 @@ func notificationsFor(t *testing.T, s *Service, userID string) []models.UserNoti
 	return rows
 }
 
-// expiredNotices selects the expiry notices a person holds, so a recipient who
-// also kept a "waiting" row for the same run is unambiguous.
-func expiredNotices(t *testing.T, s *Service, userID string) []models.UserNotification {
+// noticesInState selects the approval notices a person holds for one state, so
+// a recipient who has both a "waiting" and an "expired" row is unambiguous.
+func noticesInState(t *testing.T, s *Service, userID, state string) []models.UserNotification {
 	t.Helper()
 	matching := []models.UserNotification{}
 	for _, row := range notificationsFor(t, s, userID) {
-		if strings.Contains(row.DedupKey, ":"+notifications.ApprovalStateExpired) {
+		if strings.Contains(row.DedupKey, ":"+state) {
 			matching = append(matching, row)
 		}
 	}
@@ -247,21 +248,26 @@ func TestExpiredApprovalNotifiesApproversAndAuthor(t *testing.T) {
 	require.Equal(t, StateFailed, stored.State)
 
 	for _, userID := range []string{"approver", "client"} {
-		expired := expiredNotices(t, s, userID)
+		waiting := noticesInState(t, s, userID, "waiting")
+		require.Len(t, waiting, 1)
+		require.False(t, waiting[0].ReadAt.IsZero())
+		require.NotContains(t, waiting[0].PayloadJSON, "Review post")
+		require.Contains(t, waiting[0].Title, "expired")
+		expired := noticesInState(t, s, userID, "expired")
 		require.Len(t, expired, 1, userID)
 		require.Contains(t, expired[0].Href, "run="+run.ID)
 		require.Contains(t, expired[0].Title, "expired")
 	}
 
-	author := expiredNotices(t, s, "user")
+	author := noticesInState(t, s, "user", "expired")
 	require.Len(t, author, 1)
 	require.Contains(t, author[0].Title, "Your post was not published")
-	require.Contains(t, author[0].Href, "publication=post-1")
+	require.Contains(t, author[0].Href, "/publications/post-1")
 
 	// A second sweep must not re-report an expiry that was already recorded.
 	require.NoError(t, s.sweep(context.Background()))
 	for _, userID := range []string{"approver", "client", "user"} {
-		require.Len(t, expiredNotices(t, s, userID), 1, userID)
+		require.Len(t, noticesInState(t, s, userID, "expired"), 1, userID)
 	}
 }
 
@@ -347,15 +353,22 @@ func TestExpiryBatchIsNotStoppedByOneRun(t *testing.T) {
 		Where("id IN (?)", bun.List([]string{first.ID, second.ID})).Exec(t.Context())
 	require.NoError(t, err)
 
+	_, err = s.db.ExecContext(t.Context(), fmt.Sprintf(`CREATE TRIGGER reject_one_expiry BEFORE UPDATE OF state ON workflow_runs
+ WHEN OLD.id = '%s' AND NEW.state = 'failed'
+ BEGIN SELECT RAISE(FAIL, 'expiry unavailable'); END`, first.ID))
+	require.NoError(t, err)
 	require.NoError(t, s.sweep(context.Background()))
 
 	// Both expired, not just the first one in the batch.
-	for _, id := range []string{first.ID, second.ID} {
+	for _, id := range []string{second.ID} {
 		var stored runRecord
 		require.NoError(t, s.db.NewSelect().Model(&stored).Where("id = ?", id).Scan(t.Context()))
 		require.Equal(t, StateFailed, stored.State, id)
 	}
-	require.Len(t, expiredNotices(t, s, "approver"), 2)
+	require.Len(t, noticesInState(t, s, "approver", "expired"), 1)
+	var blocked runRecord
+	require.NoError(t, s.db.NewSelect().Model(&blocked).Where("id = ?", first.ID).Scan(t.Context()))
+	require.Equal(t, StateApproval, blocked.State)
 }
 
 // A stale compare-and-set must not expire a row that moved on. The revision is
@@ -404,6 +417,8 @@ func TestApprovingResolvesTheOtherApproversNotices(t *testing.T) {
 	require.Len(t, rows, 1)
 	require.False(t, rows[0].ReadAt.IsZero(), "the stale notice must be resolved")
 	require.Contains(t, rows[0].Title, "already decided")
+	require.NotContains(t, rows[0].Body, "Someone else")
+	require.NotContains(t, rows[0].PayloadJSON, "Review post")
 }
 
 // Cancelling is also how an approval is declined. The approvers must hear that
@@ -429,4 +444,112 @@ func TestApprovalTransitionsStaySilentWithoutANotificationService(t *testing.T) 
 	s, actor := workflowTestService(t, approvalAction())
 
 	parkApproval(t, s, actor)
+}
+
+func TestApprovalRemindersReachBeyondFirstBatch(t *testing.T) {
+	s, actor := workflowTestService(t, approvalAction())
+	approvalNotificationService(t, s)
+	run := parkApproval(t, s, actor)
+	var original runRecord
+	require.NoError(t, s.db.NewSelect().Model(&original).Where("id = ?", run.ID).Scan(t.Context()))
+	now := time.Now().UTC()
+	for index := range 101 {
+		record := original
+		record.ID = fmt.Sprintf("reminder-%03d", index)
+		record.CreatedAt = now.Add(-MaxRunAge + 48*time.Hour)
+		_, err := s.db.NewInsert().Model(&record).Exec(t.Context())
+		require.NoError(t, err)
+	}
+	require.NoError(t, s.sweep(t.Context()))
+	require.Len(t, noticesInState(t, s, "user", "reminder"), 101)
+	require.NoError(t, s.sweep(t.Context()))
+	require.Len(t, noticesInState(t, s, "user", "reminder"), 101)
+}
+
+func TestApprovalResolutionIncludesFormerApprovers(t *testing.T) {
+	s, actor := workflowTestService(t, approvalAction())
+	approvalNotificationService(t, s)
+	addApprover(t, s, "client", models.WorkspaceRoleClient)
+	run := parkApproval(t, s, actor)
+	_, err := s.db.NewUpdate().Model((*models.WorkspaceMember)(nil)).
+		Set("role = ?", models.WorkspaceRoleViewer).Where("user_id = ?", "client").Exec(t.Context())
+	require.NoError(t, err)
+	_, err = s.Cancel(t.Context(), actor, "ws", run.ID, run.Revision)
+	require.NoError(t, err)
+	rows := notificationsFor(t, s, "client")
+	require.Len(t, rows, 1)
+	require.False(t, rows[0].ReadAt.IsZero())
+	require.NotContains(t, rows[0].PayloadJSON, "Review post")
+}
+
+func TestApprovalExpiryNotificationRetriesAfterRecipientFailure(t *testing.T) {
+	s, actor := workflowTestService(t, approvalAction())
+	approvalNotificationService(t, s)
+	addApprover(t, s, "approver", models.WorkspaceRoleClient)
+	run := parkApproval(t, s, actor)
+	_, err := s.db.NewInsert().Model(&models.UserNotificationPreference{
+		UserID: "approver", PreferencesJSON: "{invalid", UpdatedAt: time.Now().UTC(),
+	}).Exec(t.Context())
+	require.NoError(t, err)
+	_, err = s.db.NewUpdate().Model((*runRecord)(nil)).Set("created_at = ?", time.Now().UTC().Add(-MaxRunAge-time.Hour)).Where("id = ?", run.ID).Exec(t.Context())
+	require.NoError(t, err)
+	require.NoError(t, s.sweep(t.Context()))
+	require.Empty(t, noticesInState(t, s, "approver", "expired"))
+	require.Len(t, noticesInState(t, s, "user", "expired"), 1, "a poisoned recipient must not block healthy recipients")
+	var job models.Job
+	require.NoError(t, s.db.NewSelect().Model(&job).Where("type = ? AND dedupe_key = ?", "workflow_approval_notice", run.ID+":review:expired").Scan(t.Context()))
+	_, err = s.db.NewDelete().Model((*models.UserNotificationPreference)(nil)).Where("user_id = ?", "approver").Exec(t.Context())
+	require.NoError(t, err)
+	require.NoError(t, s.HandleJob(t.Context(), job.Type, job.Payload))
+	require.Len(t, noticesInState(t, s, "approver", "expired"), 1)
+	require.Len(t, noticesInState(t, s, "user", "expired"), 1)
+}
+
+func TestDelayedApprovalNoticeDoesNotReopenDecidedWait(t *testing.T) {
+	s, actor := workflowTestService(t, approvalAction())
+	approvalNotificationService(t, s)
+	run := parkApproval(t, s, actor)
+	var stale runRecord
+	require.NoError(t, s.db.NewSelect().Model(&stale).Where("id = ?", run.ID).Scan(t.Context()))
+	_, err := s.db.NewDelete().Model((*models.UserNotification)(nil)).Where("workspace_id = ?", "ws").Exec(t.Context())
+	require.NoError(t, err)
+	_, err = s.Cancel(t.Context(), actor, "ws", run.ID, run.Revision)
+	require.NoError(t, err)
+	s.notifyParkedApproval(t.Context(), stale, decodeRunResults(stale))
+	require.Empty(t, notificationsFor(t, s, "user"))
+	// Exercise the same stale delivery through the real queue dispatch boundary.
+	require.NoError(t, s.HandleJob(t.Context(), "workflow_approval_notice",
+		fmt.Sprintf(`{"run_id":%q,"step_id":"review","state":"waiting"}`, run.ID)))
+	require.Empty(t, notificationsFor(t, s, "user"))
+}
+
+func TestApprovalRecipientRechecksRoleBeforeDelivery(t *testing.T) {
+	s, actor := workflowTestService(t, approvalAction())
+	approvalNotificationService(t, s)
+	addApprover(t, s, "client", models.WorkspaceRoleClient)
+	run := parkApproval(t, s, actor)
+	var record runRecord
+	require.NoError(t, s.db.NewSelect().Model(&record).Where("id = ?", run.ID).Scan(t.Context()))
+	_, err := s.db.NewDelete().Model((*models.UserNotification)(nil)).Where("user_id = ?", "client").Exec(t.Context())
+	require.NoError(t, err)
+	_, err = s.db.NewUpdate().Model((*models.WorkspaceMember)(nil)).Set("role = ?", models.WorkspaceRoleViewer).Where("user_id = ?", "client").Exec(t.Context())
+	require.NoError(t, err)
+	require.NoError(t, s.deliverApprovalNoticeToRecipient(t.Context(), record, "review", notifications.ApprovalStateWaiting,
+		approvalRecipient{userID: "client", audience: notifications.ApprovalAudienceApprover}))
+	require.Empty(t, notificationsFor(t, s, "client"))
+}
+
+func TestApprovedNoticeDoesNotBecomeExpiredAfterLaterRunFailure(t *testing.T) {
+	s, actor := workflowTestService(t, approvalAction())
+	approvalNotificationService(t, s)
+	run := parkApproval(t, s, actor)
+	_, err := s.Approve(t.Context(), actor, "ws", run.ID, run.Revision, 1)
+	require.NoError(t, err)
+	_, err = s.db.NewUpdate().Model((*runRecord)(nil)).Set("state = ?, error = ?, current_step_id = ?", StateFailed, "Later step failed", "outcomes").Where("id = ?", run.ID).Exec(t.Context())
+	require.NoError(t, err)
+	require.NoError(t, s.HandleJob(t.Context(), "workflow_approval_notice", fmt.Sprintf(`{"run_id":%q,"step_id":"review","state":"resolved"}`, run.ID)))
+	rows := notificationsFor(t, s, "user")
+	require.Len(t, rows, 1)
+	require.Contains(t, rows[0].Title, "decided")
+	require.NotContains(t, rows[0].Title, "expired")
 }

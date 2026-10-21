@@ -3,6 +3,7 @@ package notifications
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/openpost/backend/internal/models"
 	"github.com/stretchr/testify/require"
@@ -127,7 +128,7 @@ func TestWorkflowApprovalCopyFollowsStateAndAudience(t *testing.T) {
 
 	// The approver hears about the run; the author hears about their post.
 	require.Contains(t, expiredApproverInput.Href, "/workflows?run=run-1")
-	require.Contains(t, expiredAuthorInput.Href, "/publications?publication=publication-1")
+	require.Contains(t, expiredAuthorInput.Href, "/publications/publication-1")
 }
 
 // The link has to carry the workspace: the run inspector resolves a run against
@@ -272,6 +273,15 @@ func TestResolveByDedupKeysRewritesAndMarksRead(t *testing.T) {
 	require.False(t, stored.ReadAt.IsZero())
 	require.Equal(t, "Approval already decided", stored.Title)
 	require.Equal(t, "Someone else decided this approval.", stored.Body)
+	require.Empty(t, notificationActions(stored.PayloadJSON))
+
+	readAt := stored.ReadAt
+	require.NoError(t, service.ResolveByDedupKeys(ctx, db, []string{"user-1"},
+		[]string{WorkflowApprovalDedupKey("run-1", "step-1", ApprovalStateWaiting)},
+		"Approval expired", "The approval window closed."))
+	require.NoError(t, db.NewSelect().Model(&stored).Where("user_id = ?", "user-1").Scan(ctx))
+	require.WithinDuration(t, readAt, stored.ReadAt, time.Microsecond)
+	require.Equal(t, "Approval expired", stored.Title)
 }
 
 // Resolution must be scoped to the named users. The unique index is
@@ -317,4 +327,30 @@ func materialize(t *testing.T, facts WorkflowApprovalFacts) createInput {
 	input, err := materializeWorkflowApproval(mustOutcome(t, facts).notificationOutcome())
 	require.NoError(t, err)
 	return input
+}
+
+func TestWorkflowApprovalNoApproverActions(t *testing.T) {
+	for _, state := range []string{ApprovalStateWaiting, ApprovalStateReminder} {
+		for _, publicationID := range []string{"", "post-1"} {
+			t.Run(state+publicationID, func(t *testing.T) {
+				input := materialize(t, WorkflowApprovalFacts{
+					RecipientUserID: "user-1", WorkspaceID: "workspace-1", RunID: "run-1",
+					StepID: "step-1", State: state, Audience: ApprovalAudienceNoApprover,
+					PublicationID: publicationID, DaysLeft: 3,
+				})
+				require.NotContains(t, input.Title, "your approval")
+				require.NotContains(t, input.Body, "approve it yourself")
+				require.Contains(t, input.Body, "workspace administrator")
+				require.Len(t, input.Actions, 1)
+				require.NotEqual(t, "Review post", input.Actions[0].Label)
+				if publicationID == "" {
+					require.Equal(t, "/workflows?run=run-1&workspace_id=workspace-1", input.Href)
+					require.Equal(t, "View workflow run", input.Actions[0].Label)
+				} else {
+					require.Equal(t, "/publications/post-1?workspace_id=workspace-1", input.Href)
+					require.Equal(t, "Open post", input.Actions[0].Label)
+				}
+			})
+		}
+	}
 }
