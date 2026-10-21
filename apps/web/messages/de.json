@@ -3930,7 +3930,7 @@
 	"notifications_event_publish_failed_description": "Ein oder mehrere Ziele konnten nicht veröffentlichen.",
 	"notifications_event_account_needs_attention_description": "Ein verbundenes Konto muss neu verbunden oder repariert werden.",
 	"notifications_event_workflow_approval": "Workflow-Genehmigung",
-	"notifications_event_workflow_approval_description": "Ein Beitrag wartet auf eine Entscheidung. Du wirst erinnert, bevor die Frist ablaeuft.",
+	"notifications_event_workflow_approval_description": "Ein Beitrag wartet auf eine Entscheidung. Du wirst erinnert, bevor die Frist abläuft.",
 	"notifications_event_new_engagement_description": "Jemand kommentiert einen veröffentlichten Beitrag oder antwortet darauf.",
 	"notifications_event_new_message_description": "Ein verbundener Post­eingang erhält eine neue Nachricht.",
 	"notifications_event_reply_failed_description": "OpenPost konnte eine Antwort oder Interaktions­aktion nicht senden.",

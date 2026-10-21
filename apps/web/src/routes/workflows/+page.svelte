@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { tick } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import { createQuery } from '@tanstack/svelte-query';
 	import {
 		repostAutomationQueryOptions,
@@ -35,12 +35,59 @@
 	const requestedRun = $derived(page.url.searchParams.get('run') ?? '');
 	let deleting = $state<Workflow | null>(null),
 		deleteOpen = $state(false);
-	const workspaceID = $derived(workspaceCtx.currentWorkspace?.id ?? '');
-	let tab = $state<'workflows' | 'runs' | 'templates'>(requestedRun ? 'runs' : 'workflows'),
-		selectedRun = $state(requestedRun),
+	const requestedWorkspaceID = $derived(page.url.searchParams.get('workspace_id') ?? '');
+	let appliedWorkspaceLink = $state('');
+	let selectedRunWorkspaceID = $state('');
+	const workspaceLinkPending = $derived(
+		Boolean(requestedWorkspaceID && appliedWorkspaceLink !== page.url.href)
+	);
+	const workspaceID = $derived(
+		workspaceLinkPending && workspaceCtx.currentWorkspace?.id !== requestedWorkspaceID
+			? ''
+			: (workspaceCtx.currentWorkspace?.id ?? '')
+	);
+	let tab = $state<'workflows' | 'runs' | 'templates'>('workflows'),
+		selectedRun = $state(''),
 		repostHistoryOpen = $state(false),
 		busy = $state(false),
 		error = $state('');
+	// A notification may point outside the currently selected workspace.
+	// Select through the context owner before enabling any workspace-scoped reads.
+	$effect(() => {
+		const targetID = requestedWorkspaceID;
+		const href = page.url.href;
+		const workspaces = workspaceCtx.workspaces;
+		if (
+			!targetID ||
+			appliedWorkspaceLink === href ||
+			workspaceCtx.loading ||
+			workspaces.length === 0
+		)
+			return;
+		const target = workspaces.find((workspace) => workspace.id === targetID);
+		if (!target) {
+			error = m.workflows_load_failed();
+			return;
+		}
+		untrack(() => {
+			if (workspaceCtx.currentWorkspace?.id === targetID) {
+				appliedWorkspaceLink = href;
+				return;
+			}
+			void workspaceCtx
+				.setWorkspace(target, () => page.url.href === href)
+				.then((selected) => {
+					if (page.url.href === href) {
+						if (selected) appliedWorkspaceLink = href;
+						error = selected ? '' : m.workflows_load_failed();
+					}
+				})
+				.catch((cause) => {
+					if (page.url.href === href)
+						error = cause instanceof Error ? cause.message : m.workflows_load_failed();
+				});
+		});
+	});
 	const accountsQuery = createQuery(() => ({
 		...workspaceAccountsQueryOptions(queryAPI, workspaceID),
 		enabled: Boolean(workspaceID && tab === 'runs' && selectedRun)
@@ -60,11 +107,28 @@
 	$effect(() => {
 		if (!requestedRun) return;
 		selectedRun = requestedRun;
+		selectedRunWorkspaceID =
+			requestedWorkspaceID || untrack(() => workspaceCtx.currentWorkspace?.id ?? '');
 		tab = 'runs';
+	});
+	$effect(() => {
+		if (
+			!workspaceLinkPending &&
+			workspaceID &&
+			selectedRunWorkspaceID &&
+			workspaceID !== selectedRunWorkspaceID
+		) {
+			selectedRun = '';
+			selectedRunWorkspaceID = workspaceID;
+		}
 	});
 	// Start the snapshot alongside accounts, before the inspector can mount.
 	const selectedRunQuery = createQuery(() =>
-		workflowRunQueryOptions(workflowQueryAPI, workspaceID, tab === 'runs' ? selectedRun : '')
+		workflowRunQueryOptions(
+			workflowQueryAPI,
+			workspaceID,
+			tab === 'runs' && selectedRunWorkspaceID === workspaceID ? selectedRun : ''
+		)
 	);
 	const visibleQueries = $derived(
 		tab === 'workflows'
@@ -119,7 +183,7 @@
 	title={m.workflows_title()}
 	description={m.workflows_subtitle()}
 	themeIconRole="repeat"
-	{loading}
+	loading={loading && !error}
 >
 	{#snippet actions()}<Button
 			disabled={busy || !workspaceID || workspaceCtx.currentWorkspace?.role === 'viewer'}
@@ -269,7 +333,10 @@
 						id={`workflow-run-${run.id}`}
 						type="button"
 						class="flex w-full flex-wrap items-center justify-between gap-3 p-4 text-left hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
-						onclick={() => (selectedRun = run.id)}
+						onclick={() => {
+							selectedRun = run.id;
+							selectedRunWorkspaceID = workspaceID;
+						}}
 						><span class="hidden w-48 shrink-0 sm:block"
 							><GraphPreview definition={run.definition} {run} /></span
 						><span class="min-w-0 flex-1"

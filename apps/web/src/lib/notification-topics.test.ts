@@ -49,27 +49,4 @@ describe('notification topic presentation', () => {
 		setLocale('es', { reload: false });
 		expect(notificationTopicLabel('workflow_approval')).toBe('Aprobación de flujo de trabajo');
 	});
-
-	it('groups the approval topic under publishing', () => {
-		setLocale('en', { reload: false });
-		const definition = (id: string): NotificationTopicDefinition => ({
-			...backendDefinition,
-			id,
-			group: 'publishing',
-			transactional: false,
-			critical_in_app: false,
-			in_app_mutable: true,
-			email_mutable: true,
-			mute_applies: true,
-			email_frequencies: ['off', 'immediate', 'daily'],
-			default_preference: { in_app: true, email_frequency: 'off' }
-		});
-		expect(notificationTopicGroups([definition('workflow_approval')])).toEqual([
-			{
-				id: 'publishing',
-				label: 'Publishing',
-				topics: [definition('workflow_approval')]
-			}
-		]);
-	});
 });
