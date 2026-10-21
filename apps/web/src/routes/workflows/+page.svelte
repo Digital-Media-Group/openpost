@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
+	import { goto, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 	import { tick, untrack } from 'svelte';
 	import { createQuery } from '@tanstack/svelte-query';
@@ -36,11 +36,9 @@
 	let deleting = $state<Workflow | null>(null),
 		deleteOpen = $state(false);
 	const requestedWorkspaceID = $derived(page.url.searchParams.get('workspace_id') ?? '');
-	let appliedWorkspaceLink = $state('');
 	let selectedRunWorkspaceID = $state('');
-	const workspaceLinkPending = $derived(
-		Boolean(requestedWorkspaceID && appliedWorkspaceLink !== page.url.href)
-	);
+	const workspaceLinkHandled = $derived(page.state.workflowApprovalLink === page.url.href);
+	const workspaceLinkPending = $derived(Boolean(requestedWorkspaceID && !workspaceLinkHandled));
 	const workspaceID = $derived(
 		workspaceLinkPending && workspaceCtx.currentWorkspace?.id !== requestedWorkspaceID
 			? ''
@@ -57,12 +55,7 @@
 		const targetID = requestedWorkspaceID;
 		const href = page.url.href;
 		const workspaces = workspaceCtx.workspaces;
-		if (
-			!targetID ||
-			appliedWorkspaceLink === href ||
-			workspaceCtx.loading ||
-			workspaces.length === 0
-		)
+		if (!targetID || workspaceLinkHandled || workspaceCtx.loading || workspaces.length === 0)
 			return;
 		const target = workspaces.find((workspace) => workspace.id === targetID);
 		if (!target) {
@@ -70,15 +63,15 @@
 			return;
 		}
 		untrack(() => {
-			if (workspaceCtx.currentWorkspace?.id === targetID) {
-				appliedWorkspaceLink = href;
-				return;
-			}
+			// The layout remounts this route when workspace access changes.
+			// History state keeps the link handled across that remount, while a new
+			// notification navigation starts with fresh page state.
+			replaceState(page.url, { ...page.state, workflowApprovalLink: href });
+			if (workspaceCtx.currentWorkspace?.id === targetID) return;
 			void workspaceCtx
 				.setWorkspace(target, () => page.url.href === href)
 				.then((selected) => {
 					if (page.url.href === href) {
-						if (selected) appliedWorkspaceLink = href;
 						error = selected ? '' : m.workflows_load_failed();
 					}
 				})
@@ -106,6 +99,10 @@
 	}));
 	$effect(() => {
 		if (!requestedRun) return;
+		if (requestedWorkspaceID && workspaceLinkHandled && workspaceID !== requestedWorkspaceID) {
+			selectedRun = '';
+			return;
+		}
 		selectedRun = requestedRun;
 		selectedRunWorkspaceID =
 			requestedWorkspaceID || untrack(() => workspaceCtx.currentWorkspace?.id ?? '');

@@ -63,10 +63,11 @@ test("approval links select their workspace before loading a run, including same
   }
   const [first, second] = fixtures;
   await authenticatePage(page, auth.token);
-  await page.addInitScript(
-    (workspace) => localStorage.setItem("openpost_current_workspace", JSON.stringify(workspace)),
-    second.workspace,
-  );
+  await page.addInitScript((workspace) => {
+    if (window !== window.top || sessionStorage.getItem("approval-link-fixture")) return;
+    localStorage.setItem("openpost_current_workspace", JSON.stringify(workspace));
+    sessionStorage.setItem("approval-link-fixture", "ready");
+  }, second.workspace);
   const requests: string[] = [];
   const errors: string[] = [];
   page.on("request", (req) => {
@@ -77,16 +78,23 @@ test("approval links select their workspace before loading a run, including same
   await page.screenshot({ path: testInfo.outputPath("approval-entry.png") });
   await expect(page.getByText("Workflow revision 1 · Preview", { exact: true })).toBeVisible();
   await expect(page.locator("summary").filter({ hasText: "First approval marker" })).toBeVisible();
-  // A local link exercises SvelteKit same-route navigation without remounting.
-  await page.evaluate((href) => {
-    const link = document.createElement("a");
-    link.href = href;
-    link.textContent = "Open next approval";
-    document.body.append(link);
-  }, second.href);
-  await page.getByRole("link", { name: "Open next approval" }).click();
+  await expect(page).toHaveURL(first.href);
+  // A local link exercises SvelteKit navigation without remounting the app.
+  async function followApprovalLink(href: string) {
+    await page.evaluate((href) => {
+      const link = document.createElement("a");
+      link.href = href;
+      link.textContent = "Open next approval";
+      link.style.cssText =
+        "position:fixed;top:80px;right:16px;z-index:1000;padding:12px;background:white;color:black";
+      document.body.append(link);
+    }, href);
+    await page.getByRole("link", { name: "Open next approval" }).click();
+    await page.getByRole("link", { name: "Open next approval" }).evaluate((link) => link.remove());
+  }
+  await followApprovalLink(second.href);
   await expect(page.locator("summary").filter({ hasText: "Second approval marker" })).toBeVisible();
-  await page.getByRole("link", { name: "Open next approval" }).evaluate((link) => link.remove());
+  await expect(page).toHaveURL(second.href);
   for (const width of [1280, 390, 320]) {
     for (const colorScheme of ["light", "dark"] as const) {
       await page.setViewportSize({ width, height: 844 });
@@ -117,6 +125,11 @@ test("approval links select their workspace before loading a run, including same
   await expect(page.locator("summary").filter({ hasText: "Second approval marker" })).toHaveCount(
     0,
   );
+  await page.getByRole("button", { name: "Runs", exact: true }).first().click();
   await expect(page.locator(`#workflow-run-${first.run.id}`)).toBeVisible();
+  // Opening the same notification again must apply its destination again.
+  await followApprovalLink(second.href);
+  await expect(page.locator("summary").filter({ hasText: "Second approval marker" })).toBeVisible();
+  await expect(workspaceButton).toContainText("Second approval");
   expect(errors).toEqual([]);
 });
